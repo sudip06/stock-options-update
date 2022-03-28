@@ -10,6 +10,8 @@ holdings = [
             [17200, '28-Apr-2022', 'PE', 400, 485.5],
             ]
 
+target_profit = 1000*8
+
 new_plan = [
             [17100, '31-Mar-2022', 'PE', -250 ],
             [17100, '28-Apr-2022', 'PE', 250]
@@ -65,6 +67,11 @@ def calculate_profit(d):
 
     telegram_send.send(messages=[statement])
 
+    if abs(profit-profit_closed)>0.9*target_profit:
+        closure_statement = "Near target:{}, profit:{}".format(target_profit, profit)
+        for i in range(2):
+            telegram_send.send(messages=[closure_statement])
+            sleep(5)
 
 def main():
     headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
