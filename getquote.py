@@ -2,10 +2,12 @@ import requests
 import argparse
 import telegram_send
 from nsetools import Nse
-
+from datetime import datetime
 holdings = [
-            [17100, '31-Mar-2022', 'PE', -250, 188.5],
-            [17100, '28-Apr-2022', 'PE', 250, 439.2],
+            [17100, '31-Mar-2022', 'PE', -250, 188.5, 150.37],
+            [17100, '28-Apr-2022', 'PE', 250, 439.2, 422.15],
+            [17200, '31-Mar-2022', 'PE', -400, 212.6],
+            [17200, '28-Apr-2022', 'PE', 400, 485.5],
             ]
 
 new_plan = [
@@ -31,7 +33,7 @@ def initial_payout(d, which_plan):
                               (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])*element[3],1)
         implied_volatility = ([x[element[2]]['impliedVolatility'] for x in d if
                               (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])
-        statement += "strike:{} expiry:{} payout:{}, IV:{}\n".format(element[0], element[1], -profit_step, implied_volatility)
+        statement += "strike:{} expiry:{} payout:{}, IV:{}\n".format(element[0], datetime.strftime(datetime.strptime(element[1], "%d-%b-%Y"), "%d-%b"), -profit_step, implied_volatility)
         payout += profit_step
     statement+="Payout:"+str(-payout)
     telegram_send.send(messages=[statement])
@@ -42,20 +44,25 @@ def calculate_profit(d):
     profit = 0
     statement=""
     nse = Nse()
+    profit_closed = 0
     statement = "Nifty:{}, change:{}\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
     for index, element in enumerate(holdings):
         #print(round(element[3]*element[4],1))
         if len(element)==6:
             profit_step = round(((element[5] - element[4])*element[3]),1)
             statement+="strike:{} profit:{} (F)\n".format(element[0], profit_step)
+            profit_closed += profit_step
         else:
             profit_step = round(([x[element[2]]['lastPrice'] for x in d if (x['strikePrice']==element[0] and x['expiryDate']==element[1])][0] - element[4])*element[3],1)
             implied_volatility = ([x[element[2]]['impliedVolatility'] for x in d if
                                   (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])
-            statement+="strike:{} profit:{}, IV:{}\n".format(element[0], profit_step, implied_volatility)
+            statement+="strike:{} expiry:{} profit:{}, IV:{}\n".format(element[0], datetime.strftime(datetime.strptime(element[1], "%d-%b-%Y"), "%d-%b"), profit_step, implied_volatility)
         profit += profit_step
-    statement+="Total Profit:"+str(profit)
+    statement+="Total Profit:{}\n".format(str(profit))
     print("Total profit:", profit)
+    if profit_closed and (profit_closed > 0):
+        statement += "profit in open positions:{}".format(str(profit-profit_closed))
+
     telegram_send.send(messages=[statement])
 
 
