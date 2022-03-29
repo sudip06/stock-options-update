@@ -3,11 +3,12 @@ import argparse
 import telegram_send
 from nsetools import Nse
 from datetime import datetime
+import functools
 holdings = [
             [17100, '31-Mar-2022', 'PE', -250, 188.5, 150.37],
             [17100, '28-Apr-2022', 'PE', 250, 439.2, 422.15],
-            [17200, '31-Mar-2022', 'PE', -400, 212.6],
-            [17200, '28-Apr-2022', 'PE', 400, 485.5],
+            [17200, '31-Mar-2022', 'PE', -400, 212.6, 63],
+            [17200, '28-Apr-2022', 'PE', 400, 485.5, 352],
             ]
 
 target_profit = 1000*8
@@ -65,13 +66,14 @@ def calculate_profit(d):
     if profit_closed and (profit_closed > 0):
         statement += "profit in open positions:{}".format(str(profit-profit_closed))
 
-    telegram_send.send(messages=[statement])
+    if not all(len(x)==6 for x in holdings):
+        telegram_send.send(messages=[statement])
 
-    if abs(profit-profit_closed)>0.9*target_profit:
-        closure_statement = "Near target:{}, profit:{}".format(target_profit, profit)
-        for i in range(2):
-            telegram_send.send(messages=[closure_statement])
-            sleep(5)
+        if abs(profit-profit_closed)>0.9*target_profit:
+            closure_statement = "Near target:{}, profit:{}".format(target_profit, profit)
+            for i in range(2):
+                telegram_send.send(messages=[closure_statement])
+                sleep(5)
 
 def main():
     headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
