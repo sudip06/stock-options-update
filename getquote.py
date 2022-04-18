@@ -8,20 +8,28 @@ import keys
 import time
 
 holdings = [
-            [17600, '21-Apr-2022', 'PE', -350, 169.41],
-            [17600, '28-Apr-2022', 'PE', 350, 238.0],
-            [17700, '21-Apr-2022', 'CE', -350, 68.16],
-            [17700, '28-Apr-2022', 'CE', 350, 149.24],
-            ]
+              [
+                ['NIFTY', 17600, '21-Apr-2022', 'PE', -350, 169.41],
+                ['NIFTY', 17600, '28-Apr-2022', 'PE', 350, 238.0],
+                ['NIFTY', 17700, '21-Apr-2022', 'CE', -350, 68.16],
+                ['NIFTY', 17700, '28-Apr-2022', 'CE', 350, 149.24]
+              ]
+           ]
 
-target_profit = 1000*13
+target_profit = [1000*13, 8000]
 
 new_plan = [
-            [17700, '28-Apr-2022', 'PE', 400],
-            [17700, '07-Apr-2022', 'PE', -400],
-            [17800, '13-Apr-2022', 'CE', -300],
-            [17800, '28-Apr-2022', 'CE', 300]
-            ]
+              [
+                ['NIFTY', 17600, '21-Apr-2022', 'PE', -350],
+                ['NIFTY', 17600, '28-Apr-2022', 'PE', 350],
+                ['NIFTY', 17700, '21-Apr-2022', 'CE', -350],
+                ['NIFTY', 17700, '28-Apr-2022', 'CE', 350]
+              ],
+              [
+                ['ICICIBANK', 760, '28-Apr-2022', 'CE', -1375],
+                ['ICICIBANK', 780, '28-Apr-2022', 'CE', 1375]
+              ]
+           ]
 
 
 def send(msg, chat_id, token):
@@ -33,7 +41,7 @@ def send(msg, chat_id, token):
         bot.sendMessage(chat_id=chat_id, text=msg)
 
 
-def initial_payout(d, which_plan):
+def initial_payout(which_plan, headers, cookies):
     payout = 0
     statement = ""
     nse = Nse()
@@ -45,54 +53,82 @@ def initial_payout(d, which_plan):
         dataset = new_plan
    
     statement += "Nifty:{}, change:{}\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
-    for index, element in enumerate(dataset):
-        # print(round(element[3]*element[4],1))
-        profit_step = round(([x[element[2]]['lastPrice'] for x in d if
-                              (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])*element[3],1)
-        implied_volatility = ([x[element[2]]['impliedVolatility'] for x in d if
-                              (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])
-        last_price = round([x[element[2]]['lastPrice'] for x in d if (x['strikePrice']==element[0] and x['expiryDate']==element[1])][0])
-        statement+="{}>strike:{} qty:{} p/unit:{} expiry:{} type:{} payout:{}, IV:{}\n".format(index, element[0], element[3], last_price, datetime.strftime(datetime.strptime(element[1], "%d-%b-%Y"), "%d-%b"), element[2], -profit_step, implied_volatility)
-        payout += profit_step
-    statement+="Payout:"+str(-payout)
+    for i, block in enumerate(dataset):
+        statement += "Block:{}\n".format(str(i))
+        payout = 0
+        for index, element in enumerate(block):
+            if element[0] != "NIFTY":
+                url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
+                statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+            else:
+                url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
+            if index == 0:
+                option_data = requests.get(url, headers=headers, cookies=cookies)
+                p=option_data.text
+                import json
+                s=json.loads(option_data.text)
+                d=s['records']['data']
+            # print(round(element[3]*element[4],1))
+            profit_step = round(([x[element[3]]['lastPrice'] for x in d if
+                              (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])*element[4],1)
+            implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
+                              (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])
+            last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0], 2)
+            statement += "{}>strike:{} qty:{} p/unit:{} expiry:{} type:{} payout:{}, IV:{}\n".format(index, element[1], element[4], last_price, datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], -profit_step, implied_volatility)
+            payout += profit_step
+        statement += "Block:{} Payout:{}\n".format(str(i), str(-payout))
     send(statement, keys.chat_id, keys.token)
-    print("payout:{}".format(-payout))
 
 
-def calculate_profit(d):
+def calculate_profit(headers, cookies):
     profit = 0
     statement=""
     nse = Nse()
-    profit_closed = 0
     statement = "Nifty:{}, change:{}\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
-    for index, element in enumerate(holdings):
-        #print(round(element[3]*element[4],1))
-        if len(element)==6:
-            profit_step = round(((element[5] - element[4])*element[3]),1)
-            statement+="strike:{} qty:{} exp:{} profit:{} (F)\n".format(element[0], element[3], datetime.strftime(datetime.strptime(element[1], "%d-%b-%Y"), "%d-%b"), profit_step)
-            profit_closed += profit_step
+    for i, block in enumerate(holdings):
+        profit_closed = 0
+        statement += "Block:{}\n".format(str(i))
+        for index, element in enumerate(block):
+            if element[0] != "NIFTY":
+                url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
+                statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+            else:
+                url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
+            if index == 0:
+                option_data = requests.get(url, headers=headers, cookies=cookies)
+                p=option_data.text
+                import json
+                s=json.loads(option_data.text)
+                d=s['records']['data']
+            #print(round(element[3]*element[4],1))
+            if len(element)==7:
+                profit_step = round(((element[6] - element[5])*element[4]),1)
+                statement+="{}>strike:{} qty:{} exp:{} profit:{} (F)\n".format(index, element[1], element[4], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), profit_step)
+                profit_closed += profit_step
+            else:
+                profit_step = round(([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0] - element[5])*element[4],1)
+                last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0])
+                implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
+                                    (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])
+                statement+="{}>strike:{} qty:{} p/unit:{} expiry:{} type:{} profit:{}, IV:{}\n".format(index, element[1], element[4], last_price, datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
+            profit += profit_step
+        profit_open_positions = profit-profit_closed
+        if profit_closed != 0:
+            statement+="block:{}:Total profit:{}, open:{}, closed:{}\n".format(i, str(profit), str(profit_open_positions), str(profit_closed))
         else:
-            profit_step = round(([x[element[2]]['lastPrice'] for x in d if (x['strikePrice']==element[0] and x['expiryDate']==element[1])][0] - element[4])*element[3],1)
-            last_price = round([x[element[2]]['lastPrice'] for x in d if (x['strikePrice']==element[0] and x['expiryDate']==element[1])][0])
-            implied_volatility = ([x[element[2]]['impliedVolatility'] for x in d if
-                                  (x['strikePrice'] == element[0] and x['expiryDate'] == element[1])][0])
-            statement+="{}>strike:{} qty:{} p/unit:{} expiry:{} type:{} profit:{}, IV:{}\n".format(index, element[0], element[3], last_price, datetime.strftime(datetime.strptime(element[1], "%d-%b-%Y"), "%d-%b"), element[2], profit_step, implied_volatility)
-        profit += profit_step
-    statement+="Total Profit:{}\n".format(str(profit))
-    print("Total profit:", profit)
-    if profit_closed and (profit_closed > 0):
-        statement += "profit in open positions:{}".format(str(profit-profit_closed))
+            statement+="block:{}:Total profit:{}\n".format(i, str(profit))
 
-    if not all(len(x)==6 for x in holdings):
-        send(statement, keys.chat_id, keys.token)
-
-        if abs(profit-profit_closed)>0.9*target_profit:
+        if abs(profit-profit_closed)>0.9*target_profit[i]:
             profit_loss = "target" if profit > 0 else "max loss"
-            target_profit_loss = target_profit
-            closure_statement = "Near {}:{}, profit in open positions:{}".format(profit_loss, target_profit_loss, (profit-profit_closed))
+            target_profit_loss = target_profit[i]
+            closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, (profit-profit_closed), i)
             for i in range(3):
                 send(closure_statement, keys.chat_id, keys.token)
                 time.sleep(5)
+    mod_holdings = [h for holding in holdings for h in holding]
+    if not all(len(x)==7 for x in mod_holdings):
+        send(statement, keys.chat_id, keys.token)
+
 
 def main():
     headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
@@ -102,19 +138,13 @@ def main():
     print(response.status_code)
     cookies = response.cookies
 
-    url = "https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY"
-    nifty_data = requests.get(url, headers=headers, cookies=cookies)
-    p=nifty_data.text
-    import json
-    s=json.loads(nifty_data.text)
-    d=s['records']['data']
     parser = argparse.ArgumentParser()
     parser.add_argument("--payout", "-p", help="Initial payout")
     args = parser.parse_args()
     if args.payout:
-        initial_payout(d, args.payout)
+        initial_payout(args.payout, headers, cookies)
     else:
-        calculate_profit(d)
+        calculate_profit(headers=headers, cookies=cookies)
 
 if __name__ == "__main__":
     main()
