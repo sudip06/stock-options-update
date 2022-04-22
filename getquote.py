@@ -9,25 +9,25 @@ import time
 
 holdings = [
               [
-                ['NIFTY', 17600, '21-Apr-2022', 'PE', -350, 169.41],
-                ['NIFTY', 17600, '28-Apr-2022', 'PE', 350, 238.0],
-                ['NIFTY', 17700, '21-Apr-2022', 'CE', -350, 68.16],
-                ['NIFTY', 17700, '28-Apr-2022', 'CE', 350, 149.24]
+                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400, 9.7],
+                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400, 5.7]
+              ],
+              [
+                ['HINDALCO', 540, '28-Apr-2022', 'CE', -4300, 15.53],
+                ['HINDALCO', 550, '28-Apr-2022', 'CE', 4300, 9.16]
               ]
            ]
 
-target_profit = [1000*13, 8000]
+target_profit = [11000, 12000]
 
 new_plan = [
               [
-                ['NIFTY', 17600, '21-Apr-2022', 'PE', -350],
-                ['NIFTY', 17600, '28-Apr-2022', 'PE', 350],
-                ['NIFTY', 17700, '21-Apr-2022', 'CE', -350],
-                ['NIFTY', 17700, '28-Apr-2022', 'CE', 350]
+                ['HINDALCO', 540, '28-Apr-2022', 'CE', -5375],
+                ['HINDALCO', 550, '28-Apr-2022', 'CE', 5375]
               ],
               [
-                ['ICICIBANK', 760, '28-Apr-2022', 'CE', -1375],
-                ['ICICIBANK', 780, '28-Apr-2022', 'CE', 1375]
+                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400],
+                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400]
               ]
            ]
 
@@ -38,7 +38,7 @@ def send(msg, chat_id, token):
         chat_id must be a number!
         """
         bot = telegram.Bot(token=token)
-        bot.sendMessage(chat_id=chat_id, text=msg)
+        bot.sendMessage(chat_id=chat_id, text=msg, parse_mode=telegram.ParseMode.HTML)
 
 
 def initial_payout(which_plan, headers, cookies):
@@ -52,10 +52,11 @@ def initial_payout(which_plan, headers, cookies):
         statement = "New Plan:\n"
         dataset = new_plan
    
-    statement += "Nifty:{}, change:{}\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
+    statement += "<b>Nifty:{}, change:{}</b>\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
     for i, block in enumerate(dataset):
         statement += "Block:{}\n".format(str(i))
         payout = 0
+        profit_step = 0
         for index, element in enumerate(block):
             if element[0] != "NIFTY":
                 url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
@@ -84,14 +85,16 @@ def calculate_profit(headers, cookies):
     profit = 0
     statement=""
     nse = Nse()
-    statement = "Nifty:{}, change:{}\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
+    statement = "<b>Nifty:{}, change:{}</b>\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
     for i, block in enumerate(holdings):
         profit_closed = 0
+        profit_step = 0
+        profit = 0
         statement += "Block:{}\n".format(str(i))
         for index, element in enumerate(block):
             if element[0] != "NIFTY":
                 url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
-                statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
             else:
                 url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
             if index == 0:
@@ -107,16 +110,16 @@ def calculate_profit(headers, cookies):
                 profit_closed += profit_step
             else:
                 profit_step = round(([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0] - element[5])*element[4],1)
-                last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0])
+                last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0],1)
                 implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
                                     (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])
-                statement+="{}>strike:{} qty:{} p/unit:{} expiry:{} type:{} profit:{}, IV:{}\n".format(index, element[1], element[4], last_price, datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
+                statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
             profit += profit_step
         profit_open_positions = profit-profit_closed
         if profit_closed != 0:
-            statement+="block:{}:Total profit:{}, open:{}, closed:{}\n".format(i, str(profit), str(profit_open_positions), str(profit_closed))
+            statement+="block:{}:Total profit:{}, open:{}, closed:{}\n\n".format(i, str(profit), str(profit_open_positions), str(profit_closed))
         else:
-            statement+="block:{}:Total profit:{}\n".format(i, str(profit))
+            statement+="<b>block:{}:Total profit:{}</b>\n\n".format(i, str(profit))
 
         if abs(profit-profit_closed)>0.9*target_profit[i]:
             profit_loss = "target" if profit > 0 else "max loss"
