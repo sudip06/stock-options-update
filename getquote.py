@@ -9,16 +9,20 @@ import time
 
 holdings = [
               [
-                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400, 9.7],
-                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400, 5.7]
+                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400, 9.7, 6.67],
+                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400, 5.7, 3.55]
               ],
               [
-                ['HINDALCO', 540, '28-Apr-2022', 'CE', -4300, 15.53],
-                ['HINDALCO', 550, '28-Apr-2022', 'CE', 4300, 9.16]
+                ['HINDALCO', 540, '28-Apr-2022', 'CE', -4300, 15.53, 5.7],
+                ['HINDALCO', 550, '28-Apr-2022', 'CE', 4300, 9.16, 2.6]
+              ],
+              [
+                ['BHARATFORG', 730, '28-Apr-2022', 'PE', -4500, 9.4],
+                ['HINDALCO', 720, '28-Apr-2022', 'PE', 4500, 5.5]
               ]
            ]
 
-target_profit = [11000, 12000]
+target_profit = [11000, 12000, 10000]
 
 new_plan = [
               [
@@ -94,10 +98,13 @@ def calculate_profit(headers, cookies):
         for index, element in enumerate(block):
             if element[0] != "NIFTY":
                 url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
-                statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                if not all(x==7 for x in list(map(lambda x:len(x), block))):
+                    statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                else:
+                    statement += "<b>{}</b>\n".format(element[0])
             else:
                 url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
-            if index == 0:
+            if (index == 0) and not all(x==7 for x in list(map(lambda x:len(x), block))):
                 option_data = requests.get(url, headers=headers, cookies=cookies)
                 p=option_data.text
                 import json
