@@ -18,7 +18,7 @@ holdings = [
               ],
               [
                 ['BHARATFORG', 730, '28-Apr-2022', 'PE', -4500, 9.4],
-                ['HINDALCO', 720, '28-Apr-2022', 'PE', 4500, 5.5]
+                ['BHARATFORG', 720, '28-Apr-2022', 'PE', 4500, 5.5]
               ]
            ]
 
@@ -64,10 +64,10 @@ def initial_payout(which_plan, headers, cookies):
         for index, element in enumerate(block):
             if element[0] != "NIFTY":
                 url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
-                statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
             else:
                 url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
             if index == 0:
+                statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
                 option_data = requests.get(url, headers=headers, cookies=cookies)
                 p=option_data.text
                 import json
@@ -98,10 +98,11 @@ def calculate_profit(headers, cookies):
         for index, element in enumerate(block):
             if element[0] != "NIFTY":
                 url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
-                if not all(x==7 for x in list(map(lambda x:len(x), block))):
-                    statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
-                else:
-                    statement += "<b>{}</b>\n".format(element[0])
+                if index == 0:
+                    if not all(x==7 for x in list(map(lambda x:len(x), block))):
+                        statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                    else:
+                        statement += "<b>{}</b>\n".format(element[0])
             else:
                 url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
             if (index == 0) and not all(x==7 for x in list(map(lambda x:len(x), block))):
@@ -123,10 +124,10 @@ def calculate_profit(headers, cookies):
                 statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
             profit += profit_step
         profit_open_positions = profit-profit_closed
-        if profit_closed != 0:
-            statement+="block:{}:Total profit:{}, open:{}, closed:{}\n\n".format(i, str(profit), str(profit_open_positions), str(profit_closed))
+        if profit_open_positions != 0:
+            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
         else:
-            statement+="<b>block:{}:Total profit:{}</b>\n\n".format(i, str(profit))
+            statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
 
         if abs(profit-profit_closed)>0.9*target_profit[i]:
             profit_loss = "target" if profit > 0 else "max loss"
