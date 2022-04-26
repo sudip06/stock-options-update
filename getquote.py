@@ -9,20 +9,11 @@ import time
 
 holdings = [
               [
-                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400, 9.7, 6.67],
-                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400, 5.7, 3.55]
-              ],
-              [
-                ['HINDALCO', 540, '28-Apr-2022', 'CE', -4300, 15.53, 5.7],
-                ['HINDALCO', 550, '28-Apr-2022', 'CE', 4300, 9.16, 2.6]
-              ],
-              [
-                ['BHARATFORG', 730, '28-Apr-2022', 'PE', -4500, 9.4],
-                ['BHARATFORG', 720, '28-Apr-2022', 'PE', 4500, 5.5]
+                ['AMBUJACEM', 900, 383.5]
               ]
            ]
 
-target_profit = [11000, 12000, 10000]
+target_profit = [5000]
 
 new_plan = [
               [
@@ -96,38 +87,46 @@ def calculate_profit(headers, cookies):
         profit = 0
         statement += "Block:{}\n".format(str(i))
         for index, element in enumerate(block):
-            if element[0] != "NIFTY":
-                url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
-                if index == 0:
-                    if not all(x==7 for x in list(map(lambda x:len(x), block))):
-                        statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
-                    else:
-                        statement += "<b>{}</b>\n".format(element[0])
+            #check if element is stock and not option
+            if len(element) == 3:
+                last_price = nse.get_quote(element[0]).get('lastPrice')
+                statement += "<b>{}:{}, change:{}</b>\n".format(element[0], last_price, nse.get_quote(element[0]).get('change'))
+                profit = round(((last_price - element[2])*element[1]),1)
+                statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b>\n\n".format(index, element[1], last_price, element[2], profit)
+
             else:
-                url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
-            if (index == 0) and not all(x==7 for x in list(map(lambda x:len(x), block))):
-                option_data = requests.get(url, headers=headers, cookies=cookies)
-                p=option_data.text
-                import json
-                s=json.loads(option_data.text)
-                d=s['records']['data']
-            #print(round(element[3]*element[4],1))
-            if len(element)==7:
-                profit_step = round(((element[6] - element[5])*element[4]),1)
-                statement+="{}>strike:{} qty:{} exp:{} profit:{} (F)\n".format(index, element[1], element[4], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), profit_step)
-                profit_closed += profit_step
-            else:
-                profit_step = round(([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0] - element[5])*element[4],1)
-                last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0],1)
-                implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
+                if element[0] != "NIFTY":
+                    url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
+                    if index == 0:
+                        if not all(x==7 for x in list(map(lambda x:len(x), block))):
+                            statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                        else:
+                            statement += "<b>{}</b>\n".format(element[0])
+                else:
+                    url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
+                if (index == 0) and not all(x==7 for x in list(map(lambda x:len(x), block))):
+                    option_data = requests.get(url, headers=headers, cookies=cookies)
+                    p=option_data.text
+                    import json
+                    s=json.loads(option_data.text)
+                    d=s['records']['data']
+                #print(round(element[3]*element[4],1))
+                if len(element)==7:
+                    profit_step = round(((element[6] - element[5])*element[4]),1)
+                    statement+="{}>strike:{} qty:{} exp:{} profit:{} (F)\n".format(index, element[1], element[4], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), profit_step)
+                    profit_closed += profit_step
+                else:
+                    profit_step = round(([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0] - element[5])*element[4],1)
+                    last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0],1)
+                    implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
                                     (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])
-                statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
-            profit += profit_step
-        profit_open_positions = profit-profit_closed
-        if profit_open_positions != 0:
-            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
-        else:
-            statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
+                    statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
+                profit += profit_step
+                profit_open_positions = profit-profit_closed
+                if profit_open_positions != 0:
+                    statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
+                else:
+                    statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
 
         if abs(profit-profit_closed)>0.9*target_profit[i]:
             profit_loss = "target" if profit > 0 else "max loss"
@@ -137,7 +136,7 @@ def calculate_profit(headers, cookies):
                 send(closure_statement, keys.chat_id, keys.token)
                 time.sleep(5)
     mod_holdings = [h for holding in holdings for h in holding]
-    if not all(len(x)==7 for x in mod_holdings):
+    if not all(len(x) in (7,4) for x in mod_holdings):
         send(statement, keys.chat_id, keys.token)
 
 
@@ -146,7 +145,6 @@ def main():
                 'x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36'}
     main_url = "https://www.nseindia.com/"
     response = requests.get(main_url, headers=headers)
-    print(response.status_code)
     cookies = response.cookies
 
     parser = argparse.ArgumentParser()
