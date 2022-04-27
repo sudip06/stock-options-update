@@ -9,20 +9,17 @@ import time
 
 holdings = [
               [
-                ['AMBUJACEM', 900, 383.5]
+                ['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.7],
+                ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 5.5]
               ]
            ]
 
-target_profit = [5000]
+target_profit = [15000]
 
 new_plan = [
               [
-                ['HINDALCO', 540, '28-Apr-2022', 'CE', -5375],
-                ['HINDALCO', 550, '28-Apr-2022', 'CE', 5375]
-              ],
-              [
-                ['WIPRO', 540, '28-Apr-2022', 'CE', -6400],
-                ['WIPRO', 550, '28-Apr-2022', 'CE', 6400]
+                ['ASHOKLEY', 130, '26-May-2022', 'PE', -9000],
+                ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000]
               ]
            ]
 
@@ -123,10 +120,10 @@ def calculate_profit(headers, cookies):
                     statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
                 profit += profit_step
                 profit_open_positions = profit-profit_closed
-                if profit_open_positions != 0:
-                    statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
-                else:
-                    statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
+        if profit_open_positions != 0:
+            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
+        else:
+            statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
 
         if abs(profit-profit_closed)>0.9*target_profit[i]:
             profit_loss = "target" if profit > 0 else "max loss"
