@@ -6,18 +6,19 @@ from datetime import datetime
 import functools
 import keys
 import time
+from datetime import datetime
+import os
 
+dirpath = "/tmp/stockdata/"
+
+#holdings list should be ex: [['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.25], ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 4.5]]
 holdings = [
-              [
-                ['TATACHEM', 1020, '26-May-2022', 'CE', 1000, 29]
-              ],
-              [
-                ['EICHERMOT', 2400, '26-May-2022', 'CE', 350, 48.25],
-                ['EICHERMOT', 2500, '26-May-2022', 'CE', -350, 23]
-              ]
            ]
 
-target_profit = [[12000, -6000], [6000, -4000]]
+#target list ex: [[10000, -3000],[14000,-4000]] for 2 contracts. Each list contains profit and loss of each block for effective tracking
+target_profit = []
+
+target_stocks = [['SBIN', 458.5, 0]]
 
 new_plan = [
               [
@@ -34,6 +35,31 @@ def send(msg, chat_id, token):
         """
         bot = telegram.Bot(token=token)
         bot.sendMessage(chat_id=chat_id, text=msg, parse_mode=telegram.ParseMode.HTML)
+
+
+
+def track_stocks(list_stocks):
+    nse = Nse()
+    statement = ''
+    if not len(list_stocks):
+        return
+    today_date = datetime.today().strftime('%d-%m-%Y')
+    for index, stock_data in enumerate(list_stocks):
+        file_name_full = os.path.join(dirpath, stock_data[0]+"_"+today_date)
+ 
+        if not os.path.exists(file_name_full):
+            last_price = nse.get_quote(stock_data[0]).get('lastPrice')
+            if (stock_data[2] == 1) and (last_price > stock_data[1]):
+                statement += "<b>{}</b> just went above the tracking price:<b>{}</b> lastprice:<b>{}</b>".format(stock_data[0], stock_data[1], last_price)
+                #create file
+                os.mknod(file_name_full)
+            elif (stock_data[2] == 0) and (last_price < stock_data[1]):
+                statement += "<b>{}</b> just broke the tracking price:<b>{}</b> lastprice:<b>{}</b>".format(stock_data[0], stock_data[1], last_price)
+                os.mknod(file_name_full)
+    if statement:
+        init_string = "<b>Tracking Alert\n</b>"
+        statement = init_string + statement
+        send(statement, keys.chat_id, keys.token)
 
 
 def initial_payout(which_plan, headers, cookies):
@@ -88,6 +114,9 @@ def calculate_profit(headers, cookies):
     statement=""
     nse = Nse()
     statement = "<b>Nifty:{}, change:{}</b>\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
+    if not len(holdings):
+        return
+
     for i, block in enumerate(holdings):
         profit_closed = 0
         profit_step = 0
@@ -138,7 +167,7 @@ def calculate_profit(headers, cookies):
 
         # check if /tmp/limitreached
         import os
-        file_to_check = "/tmp/limitreached"
+        file_to_check = os.path.join(dirpath, "limitreached"+"_"+i)
         if not os.path.exists(file_to_check):
             if (profit-profit_closed)>0.9*target_profit[i][0]:
                 send_closure_statement = True
@@ -160,7 +189,7 @@ def calculate_profit(headers, cookies):
     mod_holdings = [h for holding in holdings for h in holding]
     #check if min is every 5 mins
     from datetime import datetime as dt
-    if dt.now().minute % 5 == 0:
+    if dt.now().minute % 10 == 0:
         if not all(len(x) in (7,4) for x in mod_holdings):
             send(statement, keys.chat_id, keys.token)
 
@@ -175,10 +204,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--payout", "-p", help="Initial payout")
     args = parser.parse_args()
-    if args.payout:
+    if args.payout in (1,2):
         initial_payout(args.payout, headers, cookies)
     else:
         calculate_profit(headers=headers, cookies=cookies)
+
+    track_stocks(target_stocks)
 
 if __name__ == "__main__":
     main()
