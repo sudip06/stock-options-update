@@ -167,12 +167,12 @@ def calculate_profit(headers, cookies):
                 last_price = quote_element.get('lastPrice')
                 change = quote_element.get('change')
                 perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
-                statement += "<b>{}:{}, change:{}({}%)</b>\n".format(element[0], last_price, change, perc_change)
+                statement += "<b>{}:{}, change:{}({}%)</b> Invested:{}K\n".format(element[0], last_price, change, perc_change, int(round(element[1]*element[2], -3)/1000))
                 profit = round(((last_price - element[2])*element[1]),1)
-                statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b>\n\n".format(index, element[1], last_price, element[2], profit)
+                statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b>\n".format(index, element[1], last_price, element[2], int(profit))
 
-            else:
-                if element[0] != "NIFTY":
+            else: #for option lines
+                if element[0] != "NIFTY": #for index options
                     url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
                     if index == 0:
                         if not all(x==7 for x in list(map(lambda x:len(x), block))):
@@ -183,33 +183,40 @@ def calculate_profit(headers, cookies):
                             statement += "<b>{}:{}, change:{}({}%)</b>\n".format(element[0], last_price, change, perc_change)
                         else:
                             statement += "<b>{}</b>\n".format(element[0])
-                else:
+                else: #for stock options
                     url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
+                #for a block, get option data first line of each block 
                 if (index == 0) and not all(x==7 for x in list(map(lambda x:len(x), block))):
                     option_data = requests.get(url, headers=headers, cookies=cookies)
                     p=option_data.text
                     import json
                     s=json.loads(option_data.text)
                     d=s['records']['data']
-                #print(round(element[3]*element[4],1))
-                if len(element)==7:
+                #if the line has been closed, find the part time profit
+                if len(element) == 7:
                     profit_step = round(((element[6] - element[5])*element[4]),1)
-                    statement+="{}>strike:{} qty:{} exp:{} profit:{} (F)\n".format(index, element[1], element[4], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), profit_step)
+                    statement+="{}>strike:{} qty:{} exp:{} profit:{} (F)\n".format(index, element[1], element[4], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), round(profit_step))
                     profit_closed += profit_step
-                else:
+                elif len(element) == 4: #if equity has been partly profit/loss booked
+                    profit_step = round(((element[3] - element[2])*element[1]),1)
+                    statement += "{}>qty:{} <b>Invested:{}K profit:{} (F)</b>\n".format(index, element[1], 
+                                                                                       int(round(Decimal(element[1])*Decimal(element[2]), -3)/1000), 
+                                                                                       int(profit_step))
+                    profit_closed += profit_step
+                else: #for open option lines
                     profit_step = round(([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0] - element[5])*element[4],1)
                     last_price = round([x[element[3]]['lastPrice'] for x in d if (x['strikePrice']==element[1] and x['expiryDate']==element[2])][0],1)
                     implied_volatility = ([x[element[3]]['impliedVolatility'] for x in d if
                                     (x['strikePrice'] == element[1] and x['expiryDate'] == element[2])][0])
-                    statement+="{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], profit_step, implied_volatility)
+                    statement += "{}>strike:{} qty:{} p/unit:{}, holding p/u:{} expiry:{} type:{} <b>profit:{}</b>, IV:{}\n".format(index, element[1], element[4], last_price, element[5], datetime.strftime(datetime.strptime(element[2], "%d-%b-%Y"), "%d-%b"), element[3], int(profit_step), implied_volatility)
                 profit += profit_step
                 profit_open_positions = profit-profit_closed
         if profit_open_positions != 0:
-            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(round(profit,1)), str(round(profit_open_positions,1)), str(round(profit_closed,1)))
+            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(int(profit), int(profit_open_positions), int(profit_closed))
         else:
-            statement+="<b>Total profit:{}</b>\n\n".format(str(round(profit,1)))
+            statement+="<b>Total profit:{}</b>\n\n".format(int(profit))
 
-        # check if /tmp/limitreached
+        # check if profit/loss reaches limit for the specific day /tmp/limitreached
         import os
         today_date = datetime.today().strftime('%d-%m-%Y')
         file_to_check = os.path.join(dirpath, "limitreached"+"_"+today_date+"_"+str(i))
@@ -218,12 +225,12 @@ def calculate_profit(headers, cookies):
                 send_closure_statement = True
                 profit_loss = "target"
                 target_profit_loss = target_profit[i][0]
-                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, (profit-profit_closed), i)
+                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, int(profit-profit_closed), i)
             elif (profit < profit_closed) and abs(profit-profit_closed)>0.9*abs(target_profit[i][1]):
                 send_closure_statement = True
                 profit_loss = "max loss"
                 target_profit_loss = target_profit[i][1]
-                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, (profit-profit_closed), i)
+                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(int(profit_loss), target_profit_loss, int(profit-profit_closed), i)
             if send_closure_statement == True:
                 for i in range(3):
                     send(closure_statement, keys.chat_id, keys.token)
