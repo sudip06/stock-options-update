@@ -8,17 +8,37 @@ import keys
 import time
 from datetime import datetime
 import os
+from decimal import Decimal
 
 dirpath = "/tmp/stockdata/"
 
 #holdings list should be ex: [['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.25], ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 4.5]]
 holdings = [
+                [
+                    ['AMBIKCO', 30, 1822 ]
+                ],
+                [
+                    ['MAHABANK', 3000, 18.9 ]
+                ],
+                [
+                    ['RVNL', 11560, 34.6 ]
+                ],
+                [
+                    ['TINPLATE', 1240, 320.4 ]
+                ],
+                [
+                    ['TNPETRO', 1700, 106.3 ]
+                ],
+                [
+                    ['TRIDENT', 5000, 39.85]
+                ]
            ]
 
 #target list ex: [[10000, -3000],[14000,-4000]] for 2 contracts. Each list contains profit and loss of each block for effective tracking
-target_profit = []
+target_profit = [[11000, -3000],  [11000, -3000], [80000, -20000], [80000, -20000], [36000, -9000], [40000, -10000]]
 
-target_stocks = [['SBIN', 458.5, 0]]
+#tracking list ex: [['POWERGRID', 228, 0], ['SBIN', 460, 1]]  #0 for going down, 1 for going up
+target_stocks = []
 
 new_plan = [
               [
@@ -72,8 +92,13 @@ def initial_payout(which_plan, headers, cookies):
     else:
         statement = "New Plan:\n"
         dataset = new_plan
-   
-    statement += "<b>Nifty:{}, change:{}</b>\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
+
+    nifty_quote = nse.get_index_quote("nifty 50")
+    last_price = nifty_quote.get('lastPrice')
+    change = nifty_quote.get('change')
+    perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
+    statement += "<b>Nifty:{}, change:{}({}\%)</b>\n".format(last_price, change, perc_change)
+
     for i, block in enumerate(dataset):
         statement += "Block:{}\n".format(str(i))
         payout = 0
@@ -81,17 +106,24 @@ def initial_payout(which_plan, headers, cookies):
         for index, element in enumerate(block):
             #check if element is stock and not option
             if len(element) == 3:
-                last_price = nse.get_quote(element[0]).get('lastPrice')
-                statement += "<b>{}:{}, change:{}</b>\n".format(element[0], last_price, nse.get_quote(element[0]).get('change'))
+                quote_element = nse.get_quote(element[0])
+                last_price = quote_element.get('lastPrice')
+                change = quote_element.get('change')
+                perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
+                statement += "<b>{}:{}, change:{}({}%) </b>\n".format(element[0], last_price, change, perc_change)
                 payout = round(last_price*element[1],1)
                 statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>debit:{}</b>\n\n".format(index, element[1], last_price, element[2], payout)
-            else:
+            else: #for options primarily
                 if element[0] != "NIFTY":
                     url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
                 else:
                     url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
                 if index == 0:
-                    statement += "{}:{}, change:{}\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                    quote_element = nse.get_quote(element[0])
+                    last_price = quote_element.get('lastPrice')
+                    change = quote_element.get('change')
+                    statement += "<b>{}:{}, change:{} </b>\n".format(element[0], last_price, change)
+
                     option_data = requests.get(url, headers=headers, cookies=cookies)
                     p=option_data.text
                     import json
@@ -113,7 +145,11 @@ def calculate_profit(headers, cookies):
     profit = 0
     statement=""
     nse = Nse()
-    statement = "<b>Nifty:{}, change:{}</b>\n".format(nse.get_index_quote("nifty 50").get('lastPrice'), nse.get_index_quote("nifty 50").get('change'))
+    nifty_quote = nse.get_index_quote("nifty 50")
+    last_price = nifty_quote.get('lastPrice')
+    change = nifty_quote.get('change')
+    perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
+    statement += "<b>Nifty:{}, change:{}({}%)</b>\n".format(last_price, change, perc_change)
     if not len(holdings):
         return
 
@@ -124,10 +160,14 @@ def calculate_profit(headers, cookies):
         send_closure_statement = False
         statement += "Block:{}\n".format(str(i))
         for index, element in enumerate(block):
+            profit_open_positions = 0
             #check if element is stock and not option
             if len(element) == 3:
-                last_price = nse.get_quote(element[0]).get('lastPrice')
-                statement += "<b>{}:{}, change:{}</b>\n".format(element[0], last_price, nse.get_quote(element[0]).get('change'))
+                quote_element = nse.get_quote(element[0])
+                last_price = quote_element.get('lastPrice')
+                change = quote_element.get('change')
+                perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
+                statement += "<b>{}:{}, change:{}({}%)</b>\n".format(element[0], last_price, change, perc_change)
                 profit = round(((last_price - element[2])*element[1]),1)
                 statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b>\n\n".format(index, element[1], last_price, element[2], profit)
 
@@ -136,7 +176,11 @@ def calculate_profit(headers, cookies):
                     url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
                     if index == 0:
                         if not all(x==7 for x in list(map(lambda x:len(x), block))):
-                            statement += "<b>{}:{}, change:{}</b>\n".format(element[0], nse.get_quote(element[0]).get('lastPrice'), nse.get_quote(element[0]).get('change'))
+                            quote_element = nse.get_quote(element[0])
+                            last_price = quote_element.get('lastPrice')
+                            change = quote_element.get('change')
+                            perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
+                            statement += "<b>{}:{}, change:{}({}%)</b>\n".format(element[0], last_price, change, perc_change)
                         else:
                             statement += "<b>{}</b>\n".format(element[0])
                 else:
@@ -161,13 +205,14 @@ def calculate_profit(headers, cookies):
                 profit += profit_step
                 profit_open_positions = profit-profit_closed
         if profit_open_positions != 0:
-            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(profit), str(profit_open_positions), str(profit_closed))
+            statement+="Total profit:{}, open:{}, closed:{}\n\n".format(str(round(profit,1)), str(round(profit_open_positions,1)), str(round(profit_closed,1)))
         else:
-            statement+="<b>Total profit:{}</b>\n\n".format(str(profit))
+            statement+="<b>Total profit:{}</b>\n\n".format(str(round(profit,1)))
 
         # check if /tmp/limitreached
         import os
-        file_to_check = os.path.join(dirpath, "limitreached"+"_"+i)
+        today_date = datetime.today().strftime('%d-%m-%Y')
+        file_to_check = os.path.join(dirpath, "limitreached"+"_"+today_date+"_"+str(i))
         if not os.path.exists(file_to_check):
             if (profit-profit_closed)>0.9*target_profit[i][0]:
                 send_closure_statement = True
@@ -189,7 +234,8 @@ def calculate_profit(headers, cookies):
     mod_holdings = [h for holding in holdings for h in holding]
     #check if min is every 5 mins
     from datetime import datetime as dt
-    if dt.now().minute % 10 == 0:
+    #if dt.now().minute in (25, 30,31,0,1,range(15,30)):
+    if True:
         if not all(len(x) in (7,4) for x in mod_holdings):
             send(statement, keys.chat_id, keys.token)
 
@@ -207,7 +253,10 @@ def main():
     if args.payout in (1,2):
         initial_payout(args.payout, headers, cookies)
     else:
-        calculate_profit(headers=headers, cookies=cookies)
+        from datetime import datetime as dt
+        #if dt.now().minute in (30,0, range(15,30)):
+        if True:
+            calculate_profit(headers=headers, cookies=cookies)
 
     track_stocks(target_stocks)
 
