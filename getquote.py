@@ -230,7 +230,7 @@ def calculate_profit(headers, cookies):
                 send_closure_statement = True
                 profit_loss = "max loss"
                 target_profit_loss = target_profit[i][1]
-                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(int(profit_loss), target_profit_loss, int(profit-profit_closed), i)
+                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, int(profit-profit_closed), i)
             if send_closure_statement == True:
                 for i in range(3):
                     send(closure_statement, keys.chat_id, keys.token)
@@ -241,8 +241,8 @@ def calculate_profit(headers, cookies):
     mod_holdings = [h for holding in holdings for h in holding]
     #check if min is every 5 mins
     from datetime import datetime as dt
-    #if dt.now().minute in (25, 30,31,0,1,range(15,30)):
-    if True:
+    if dt.now().minute in (0,1, 15,16, 30,31, 45,46):
+    #if True:
         if not all(len(x) in (7,4) for x in mod_holdings):
             send(statement, keys.chat_id, keys.token)
 
@@ -261,7 +261,7 @@ def main():
         initial_payout(args.payout, headers, cookies)
     else:
         from datetime import datetime as dt
-        #if dt.now().minute in (30,0, range(15,30)):
+        #if dt.now().minute in (0, 15, 30, 45)):
         if True:
             calculate_profit(headers=headers, cookies=cookies)
 
