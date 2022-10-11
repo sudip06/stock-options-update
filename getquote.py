@@ -225,12 +225,14 @@ def calculate_profit(headers, cookies):
                 send_closure_statement = True
                 profit_loss = "target"
                 target_profit_loss = target_profit[i][0]
+                stock_name = block[0][0]
                 closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, int(profit-profit_closed), i)
             elif (profit < profit_closed) and abs(profit-profit_closed)>0.9*abs(target_profit[i][1]):
                 send_closure_statement = True
                 profit_loss = "max loss"
                 target_profit_loss = target_profit[i][1]
-                closure_statement = "Near {}:{}, profit in open positions:{}, block:{}".format(profit_loss, target_profit_loss, int(profit-profit_closed), i)
+                stock_name = block[0][0]
+                closure_statement = "Near {}:{}, profit in open positions:{}, stock:{} block:{}".format(profit_loss, target_profit_loss, int(profit-profit_closed), stock_name, i)
             if send_closure_statement == True:
                 for i in range(3):
                     send(closure_statement, keys.chat_id, keys.token)
