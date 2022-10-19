@@ -153,6 +153,7 @@ def calculate_profit(headers, cookies):
     if not len(holdings):
         return
 
+    today_profit = 0
     for i, block in enumerate(holdings):
         profit_closed = 0
         profit_step = 0
@@ -161,14 +162,16 @@ def calculate_profit(headers, cookies):
         statement += "Block:{}\n".format(str(i))
         for index, element in enumerate(block):
             profit_open_positions = 0
-            #check if element is stock and not option
+            #check if element is stock and not option and is open not closed
             if len(element) == 3:
                 quote_element = nse.get_quote(element[0])
                 last_price = quote_element.get('lastPrice')
                 change = quote_element.get('change')
                 perc_change = round((Decimal(change)*100)/(Decimal(last_price)-Decimal(change)),1)
-                statement += "<b>{}:{}, change:{}({}%)</b> Invested:{}K\n".format(element[0], last_price, change, perc_change, int(round(element[1]*element[2], -3)/1000))
+                perc_change_invested = round(round(Decimal(last_price)-Decimal(str(element[2])),1)*100/round(Decimal(str(element[2])),1),1)
+                statement += "<b>{}:{}, change:{}(today:{}% Total:{}%)</b> Invested:{}K\n".format(element[0], last_price, change, perc_change, perc_change_invested, int(round(element[1]*element[2], -3)/1000))
                 profit = round(((last_price - element[2])*element[1]),1)
+                today_profit += round(element[1]*Decimal(change))
                 statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b>\n".format(index, element[1], last_price, element[2], int(profit))
 
             else: #for option lines
@@ -240,6 +243,7 @@ def calculate_profit(headers, cookies):
                 #create file
                 os.mknod(file_to_check)
 
+    statement += "Today profit:{}\n\n".format(today_profit)
     mod_holdings = [h for holding in holdings for h in holding]
     #check if min is every 5 mins
     from datetime import datetime as dt
