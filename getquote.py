@@ -22,17 +22,17 @@ client = Client(keys.account_sid, keys.auth_token)
 
 #holdings list should be ex: [['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.25], ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 4.5]]
 holdings = [
-                [['HLVLTD.NS', 20000, 29.3 ]],
-                [['SATINDLTD.NS', 6000, 116.75 ]],
-                [['SYNCOMF.NS', 40000, 12.15 ]]
+                #[['HDFCBANK.NS', 500, 1661]], [['HDFCBANK.NS', 2700, '25-Jan-2024', 'CE', -500, 28.3]],
+                [['HDFCBANK.NS', 500, 1661]],
+                [['SALASAR.NS', 10000, 62.15]]
            ]
 
 #target list ex: [[10000, -3000],[14000,-4000]] for 2 contracts. Each list contains profit and loss of each block for effective tractarget_profit = [[130000, -30000], [200000, -40000],  [90000, -22500], [65000, -15000], [156000, 31000],  [110000, -20000]]
-target_profit = [[80000, -20000], [40000, -10000], [70000, -17000]]
+target_profit = [[80000, -20000], [70000, -20000]]
 #tracking list ex: [['POWERGRID.NS', 228, 0], ['SBIN.NS', 460, 1]]  #0 for going up, 1 for going down
 target_stocks = [
-                    ['HLVLTD.NS', 27.55, 1], ['SYNCOMF.NS', 11.2 1], ['SATINDLTD.NS', 105, 1],
-                    ['HLVLTD.NS', 34, 0], ['SYNCOMF.NS', 15.0, 0], ['SATINDLTD.NS', 125, 0]
+      ['HDFCBANK.NS', 1600, 1], ['SALASAR.NS', 59.2, 1],
+      ['HDFCBANK.NS', 1750, 0], ['SALASAR.NS', 66.1, 0]
                 ]
 
 new_plan = [
@@ -71,13 +71,32 @@ def track_stocks(list_stocks):
     if not len(list_stocks):
         return
     today_date = datetime.today().strftime('%d-%m-%Y')
+    nifty_file_name_full = os.path.join(dirpath, "NIFTY"+"_CALL_"+today_date)
+    if not os.path.exists(nifty_file_name_full):
+        last_price = get_current_price("^NSEI", 0)
+        perc_change, change = get_change("^NSEI")
+        if abs(change) > 200:
+            twilio_statement.append("NIFTY moved by:{} lastprice:{}".format(change, last_price))
+            os.mknod(nifty_file_name_full)
+
     for index, stock_data in enumerate(list_stocks):
-        file_name_full = os.path.join(dirpath, stock_data[0]+"_CALL_"+today_date)
+        stock_name = stock_data[0].rstrip('.NS').rstrip('.BO')
+        file_name_full = os.path.join(dirpath, stock_name +"_CALL_"+today_date)
+        file_name_perc_hit = os.path.join(dirpath, stock_name +"_PERC_"+today_date)
  
+        if not os.path.exists(file_name_perc_hit):
+            last_price = get_current_price(stock_data[0], 0)
+            perc_change, change = get_change(stock_data[0])
+            if abs(perc_change) > 5:
+                statement += "<b>{}</b> just changed by <b>{}%</b>, last_price:{}".format(stock_name, perc_change, last_price)
+                twilio_statement.append("{} just changed by {} percent, last_price:{}".format(stock_name, perc_change, last_price))
+                os.mknod(file_name_perc_hit)
         if not os.path.exists(file_name_full):
             last_price = get_current_price(stock_data[0], 0)
+            perc_change, change = get_change(stock_data[0])
             stock_name = stock_data[0].rstrip('.NS').rstrip('.BO')
-            if (stock_data[2]==0) and (last_price > stock_data[1]):
+            if ((stock_data[2]==0) and (last_price > stock_data[1])):
+                twilio_statement.append("{} just went above the tracking price:{} lastprice:{}".format(stock_name, stock_data[1], last_price))
                 statement += "<b>{}</b> just went above the tracking price:<b>{}</b> lastprice:<b>{}</b>".format(stock_name, stock_data[1], last_price)
                 twilio_statement.append("{} just went above the tracking price:{} lastprice:{}".format(stock_name, stock_data[1], last_price))
                 #create file
@@ -96,6 +115,9 @@ def track_stocks(list_stocks):
 
         twiml_content = "<Response>\n"
 	# Iterate over the list of strings
+        twiml_content += "    <Pause length=\"5\"/>\n"
+        twiml_content += f"    <Say voice=\"alice\">Listen to this carefully:</Say>\n"
+        twiml_content += "    <Pause length=\"2\"/>\n"
         for message in twilio_statement:
             twiml_content += f"    <Say voice=\"alice\">{message}</Say>\n"
             twiml_content += "    <Pause length=\"2\"/>\n"
@@ -209,7 +231,7 @@ def calculate_profit(headers, cookies):
                                                                                    int(profit_step))
                 profit_closed += profit_step
             else: #for option lines or for partially/fully closed equity
-                if element[0] != "NIFTY": #for index options
+                if element[0] != "NIFTY": #for stock options
                     url = "https://www.nseindia.com/api/option-chain-equities?symbol="+element[0]
                     if index == 0:
                         if not all(x==7 for x in list(map(lambda x:len(x), block))):
@@ -218,7 +240,7 @@ def calculate_profit(headers, cookies):
                             statement += "<b>{}:{}, change:{}({}%)</b>\n".format(element[0], last_price, change, perc_change)
                         else:
                             statement += "<b>{}</b>\n".format(element[0])
-                else: #for stock options
+                else: #for indices options
                     url = "https://www.nseindia.com/api/option-chain-indices?symbol="+element[0]
 
                 #for a block, get option data first line of each block
@@ -284,9 +306,9 @@ def calculate_profit(headers, cookies):
 
 
 def main():
-    #headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
-    #            'x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36'}
-    #main_url = "https://www.nseindia.com/"
+    headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
+                'x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36'}
+    main_url = "https://www.nseindia.com/"
     #response = requests.get(main_url, headers=headers)
     #cookies = response.cookies
     cookies = ''
