@@ -5,7 +5,7 @@ from nsetools import Nse
 from datetime import datetime
 import functools
 import keys
-import time
+import time as timepy
 from datetime import datetime
 import os
 from decimal import Decimal
@@ -14,6 +14,33 @@ import yfinance as yf
 from yahoo_fin.stock_info import get_live_price
 from twilio.rest import Client
 from twilio.twiml.voice_response import Gather, VoiceResponse
+from datetime import datetime, time, timedelta
+import pytz  # This library is used to work with time zones
+
+holidays = ["26-Jan-24", 
+            "8-Mar-24", 
+            "25-Mar-24", 
+            "29-Mar-24", 
+            "11-Apr-24",
+            "17-Apr-24",
+            "1-May-24",
+            "17-Jun-24",
+            "17-Jul-24",
+            "15-Aug-24",
+            "2-Oct-24",
+            "1-Nov-24",
+            "15-Nov-24",
+            "26-Dec-24"]
+
+def is_current_time_greater_than(target_hour, target_minute, timezone_name):
+    # Get the current time in the specified time zone
+    current_time = datetime.now(pytz.timezone(timezone_name)).time()
+
+    # Create a target time using the provided hour and minute
+    target_time = time(target_hour, target_minute)
+
+    # Compare the current time with the target time
+    return current_time > target_time
 
 dirpath = "/root/stockdata/"
 
@@ -21,18 +48,24 @@ dirpath = "/root/stockdata/"
 client = Client(keys.account_sid, keys.auth_token)
 
 #holdings list should be ex: [['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.25], ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 4.5]]
+#partially sold equity [['SALASAR.NS', 10000, 62.15], ['SALASAR.NS', 5000, 62.15, 68.5]], its buying price followed by selling price
 holdings = [
                 #[['HDFCBANK.NS', 500, 1661]], [['HDFCBANK.NS', 2700, '25-Jan-2024', 'CE', -500, 28.3]],
-                [['HDFCBANK.NS', 500, 1661]],
-                [['SALASAR.NS', 10000, 62.15]]
+                [['SALASAR.NS', 15000, 63.5, 70],
+                ['SALASAR.NS', 7800, 72.2]],
+                [['TNPETRO.NS', 5500, 105.5]],
+                [['SCI.NS', 3300, 167.7]],
+                [['GEOJITFSL.NS', 7500, 79.9]],
+                [['LEMONTREE.NS', 6000, 134]]
            ]
 
 #target list ex: [[10000, -3000],[14000,-4000]] for 2 contracts. Each list contains profit and loss of each block for effective tractarget_profit = [[130000, -30000], [200000, -40000],  [90000, -22500], [65000, -15000], [156000, 31000],  [110000, -20000]]
-target_profit = [[80000, -20000], [70000, -20000]]
+target_profit = [[250000, -20000], [87000, -30000],[83000, -30000], [90000, -30000], [120000, -30000]]
+
 #tracking list ex: [['POWERGRID.NS', 228, 0], ['SBIN.NS', 460, 1]]  #0 for going up, 1 for going down
 target_stocks = [
-      ['HDFCBANK.NS', 1600, 1], ['SALASAR.NS', 59.2, 1],
-      ['HDFCBANK.NS', 1750, 0], ['SALASAR.NS', 66.1, 0]
+      ['TNPETRO.NS', 97, 1], ['SCI.NS', 153, 1], ['GEOJITFSL.NS', 76, 1], ['LEMONTREE.NS', 128, 1], ['SALASAR.NS', 85, 1],
+      ['TNPETRO.NS', 114.7, 0],['SCI.NS', 185, 0], ['GEOJITFSL.NS', 96, 0], ['LEMONTREE.NS', 154, 0], ['SALASAR.NS', 99, 0]
                 ]
 
 new_plan = [
@@ -88,22 +121,21 @@ def track_stocks(list_stocks):
             last_price = get_current_price(stock_data[0], 0)
             perc_change, change = get_change(stock_data[0])
             if abs(perc_change) > 5:
-                statement += "<b>{}</b> just changed by <b>{}%</b>, last_price:{}".format(stock_name, perc_change, last_price)
-                twilio_statement.append("{} just changed by {} percent, last_price:{}".format(stock_name, perc_change, last_price))
+                statement += "<b>{}</b> just changed by <b>{}%</b>, last_price:{}.".format(stock_name, perc_change, last_price)
+                twilio_statement.append("{} just changed by {} percent, last_price:{}.".format(stock_name, perc_change, last_price))
                 os.mknod(file_name_perc_hit)
         if not os.path.exists(file_name_full):
             last_price = get_current_price(stock_data[0], 0)
             perc_change, change = get_change(stock_data[0])
             stock_name = stock_data[0].rstrip('.NS').rstrip('.BO')
             if ((stock_data[2]==0) and (last_price > stock_data[1])):
-                twilio_statement.append("{} just went above the tracking price:{} lastprice:{}".format(stock_name, stock_data[1], last_price))
-                statement += "<b>{}</b> just went above the tracking price:<b>{}</b> lastprice:<b>{}</b>".format(stock_name, stock_data[1], last_price)
-                twilio_statement.append("{} just went above the tracking price:{} lastprice:{}".format(stock_name, stock_data[1], last_price))
+                twilio_statement.append("{} just went above the tracking price:{} lastprice:{}.".format(stock_name, stock_data[1], last_price))
+                statement += "<b>{}</b> just went above the tracking price:<b>{}</b> lastprice:<b>{}</b>.".format(stock_name, stock_data[1], last_price)
                 #create file
                 os.mknod(file_name_full)
             elif (stock_data[2]==1) and (last_price < stock_data[1]):
-                twilio_statement.append("{} just broke below the tracking price:{} lastprice:{}".format(stock_name, stock_data[1], last_price))
-                statement += "<b>{}</b> just broke below the tracking price:<b>{}</b> lastprice:<b>{}</b>".format(stock_name, stock_data[1], last_price)
+                twilio_statement.append("{} just broke below the tracking price:{} lastprice:{}.".format(stock_name, stock_data[1], last_price))
+                statement += "<b>{}</b> just broke below the tracking price:<b>{}</b> lastprice:<b>{}</b>.".format(stock_name, stock_data[1], last_price)
                 os.mknod(file_name_full)
     if statement:
         init_string = "<b>Tracking Alert\n</b>"
@@ -111,7 +143,7 @@ def track_stocks(list_stocks):
         send(statement, keys.chat_id, keys.token)
         # Your Twilio phone number and the recipient's phone number (in E.164 format)
         from_number = keys.from_number
-        to_number = keys.to_number  # Replace with the recipient's phone number
+        to_numbers = keys.to_number  # Replace with the recipient's phone number
 
         twiml_content = "<Response>\n"
 	# Iterate over the list of strings
@@ -121,9 +153,12 @@ def track_stocks(list_stocks):
         for message in twilio_statement:
             twiml_content += f"    <Say voice=\"alice\">{message}</Say>\n"
             twiml_content += "    <Pause length=\"2\"/>\n"
+            twiml_content += f"    <Say voice=\"alice\">{message}</Say>\n"
+            twiml_content += "    <Pause length=\"2\"/>\n"
         twiml_content += "</Response>"
         # Make a phone call with TwiML content
-        call = client.calls.create(
+        for to_number in to_numbers:
+            call = client.calls.create(
                        to=to_number,
                        from_=from_number,
                        twiml=twiml_content
@@ -291,7 +326,7 @@ def calculate_profit(headers, cookies):
             if send_closure_statement == True:
                 for i in range(3):
                     send(closure_statement, keys.chat_id, keys.token)
-                    time.sleep(5)
+                    timepy.sleep(5)
                 #create file
                 os.mknod(file_to_check)
 
@@ -305,7 +340,18 @@ def calculate_profit(headers, cookies):
             send(statement, keys.chat_id, keys.token)
 
 
+def is_holiday(date_str):
+    global holidays
+    # Convert date string to datetime object
+    date = datetime.strptime(date_str, "%d-%b-%y")
+    # Check if the date is in the list of holidays
+    return date.strftime("%d-%b-%y") in holidays 
+
+
 def main():
+    current_date_str = datetime.now().strftime("%d-%b-%y")
+    sys.exit() if is_holiday(current_date_str) else None
+
     headers = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; '
                 'x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36'}
     main_url = "https://www.nseindia.com/"
@@ -320,11 +366,12 @@ def main():
         initial_payout(args.payout, headers, cookies)
     else:
         from datetime import datetime as dt
-        if dt.now().minute in (3, 24, 45):
-        #if True:
+        #if dt.now().minute in (3, 24, 45):
+        if True:
             calculate_profit(headers=headers, cookies=cookies)
 
-    track_stocks(target_stocks)
+    if is_current_time_greater_than(9, 15, 'Asia/Kolkata'):
+        track_stocks(target_stocks)
 
 if __name__ == "__main__":
     main()
