@@ -16,6 +16,8 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import Gather, VoiceResponse
 from datetime import datetime, time, timedelta
 import pytz  # This library is used to work with time zones
+from telegram.ext import Updater, MessageHandler, Filters
+from india_data import holdings, target_profit, target_stocks, new_plan
 
 holidays = ["26-Jan-24", 
             "8-Mar-24", 
@@ -42,38 +44,20 @@ def is_current_time_greater_than(target_hour, target_minute, timezone_name):
     # Compare the current time with the target time
     return current_time > target_time
 
+def is_current_time_lesser_than(target_hour, target_minute, timezone_name):
+    # Get the current time in the specified time zone
+    current_time = datetime.now(pytz.timezone(timezone_name)).time()
+
+    # Create a target time using the provided hour and minute
+    target_time = time(target_hour, target_minute)
+
+    # Compare the current time with the target time
+    return current_time < target_time
+
 dirpath = "/root/stockdata/"
 
 # Create a Twilio client
 client = Client(keys.account_sid, keys.auth_token)
-
-#holdings list should be ex: [['ASHOKLEY', 130, '26-May-2022', 'PE', -9000, 6.25], ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000, 4.5]]
-#partially sold equity [['SALASAR.NS', 10000, 62.15], ['SALASAR.NS', 5000, 62.15, 68.5]], its buying price followed by selling price
-holdings = [
-                #[['HDFCBANK.NS', 500, 1661]], [['HDFCBANK.NS', 2700, '25-Jan-2024', 'CE', -500, 28.3]],
-                [['SALASAR.NS', 15000, 63.5, 70],
-                ['SALASAR.NS', 7800, 72.2]],
-                [['TNPETRO.NS', 5500, 105.5]],
-                [['SCI.NS', 3300, 167.7]],
-                [['GEOJITFSL.NS', 7500, 79.9]],
-                [['LEMONTREE.NS', 6000, 134]]
-           ]
-
-#target list ex: [[10000, -3000],[14000,-4000]] for 2 contracts. Each list contains profit and loss of each block for effective tractarget_profit = [[130000, -30000], [200000, -40000],  [90000, -22500], [65000, -15000], [156000, 31000],  [110000, -20000]]
-target_profit = [[250000, -20000], [87000, -30000],[83000, -30000], [90000, -30000], [120000, -30000]]
-
-#tracking list ex: [['POWERGRID.NS', 228, 0], ['SBIN.NS', 460, 1]]  #0 for going up, 1 for going down
-target_stocks = [
-      ['TNPETRO.NS', 97, 1], ['SCI.NS', 153, 1], ['GEOJITFSL.NS', 76, 1], ['LEMONTREE.NS', 128, 1], ['SALASAR.NS', 85, 1],
-      ['TNPETRO.NS', 114.7, 0],['SCI.NS', 185, 0], ['GEOJITFSL.NS', 96, 0], ['LEMONTREE.NS', 154, 0], ['SALASAR.NS', 99, 0]
-                ]
-
-new_plan = [
-              [
-                ['ASHOKLEY', 130, '26-May-2022', 'PE', -9000],
-                ['ASHOKLEY', 127.5, '26-May-2022', 'PE', 9000]
-              ]
-           ]
 
 #return perc change in beginning, absolute value later
 def get_change(symbol):
@@ -366,11 +350,11 @@ def main():
         initial_payout(args.payout, headers, cookies)
     else:
         from datetime import datetime as dt
-        #if dt.now().minute in (3, 24, 45):
-        if True:
+        if dt.now().minute in (3, 24, 45):
+            #if True:
             calculate_profit(headers=headers, cookies=cookies)
 
-    if is_current_time_greater_than(9, 15, 'Asia/Kolkata'):
+    if is_current_time_greater_than(9, 15, 'Asia/Kolkata') and is_current_time_lesser_than(15, 30, 'Asia/Kolkata'):
         track_stocks(target_stocks)
 
 if __name__ == "__main__":
