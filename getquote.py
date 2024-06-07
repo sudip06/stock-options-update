@@ -1,3 +1,4 @@
+import json
 import requests
 import argparse
 import telegram
@@ -17,7 +18,7 @@ from twilio.twiml.voice_response import Gather, VoiceResponse
 from datetime import datetime, time, timedelta
 import pytz  # This library is used to work with time zones
 from telegram.ext import Updater, MessageHandler, Filters
-from india_data import holdings, target_profit, target_stocks, new_plan
+#from india_data import holdings, target_profit, target_stocks, new_plan
 
 holidays = ["26-Jan-24", 
             "8-Mar-24", 
@@ -33,6 +34,15 @@ holidays = ["26-Jan-24",
             "1-Nov-24",
             "15-Nov-24",
             "26-Dec-24"]
+
+# Load data from the JSON file
+with open('/root/stockTicker/stock-options-update/india_data.json', 'r') as f:
+    data = json.load(f)
+
+holdings = data.get("holdings", [])
+target_profit = data.get("target_profit", [])
+target_stocks = data.get("target_stocks", [])
+new_plan = data.get("new_plan", [])
 
 def is_current_time_greater_than(target_hour, target_minute, timezone_name):
     # Get the current time in the specified time zone
@@ -172,6 +182,7 @@ def initial_payout(which_plan, headers, cookies):
         payout = 0
         profit_step = 0
         for index, element in enumerate(block):
+            print(f"XXXXXXXXXXXXXXXXXX element is:{element}")	
             #check if element is stock and not option
             if len(element) == 3:
                 stock_quote = yf.Ticker(element[0]+'.NS').info
@@ -235,15 +246,17 @@ def calculate_profit(headers, cookies):
             if len(element) == 3:
                 stock_quote = yf.Ticker(element[0].upper()).info
                 last_price = get_current_price(element[0],0)
+                target_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 0)
+                lower_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 1)
                 perc_change, change = get_change(element[0].upper())
                 perc_change_invested = round(round(Decimal(last_price)-Decimal(str(element[2])),1)*100/round(Decimal(str(element[2])),1),1)
-                statement += "<b>{}:{}, change:{}(today:{}% Total:{}%)</b> Invested:{}K\n".format(element[0].replace(".NS","").replace(".BO",""), last_price, change, perc_change, perc_change_invested, int(round(element[1]*element[2], -3)/1000))
+                statement += "<b>{}:{}, change:{}(today:{}% Total:{}%)</b> Invested:{}K <b>target:{} lower alert:{}</b>\n".format(element[0].replace(".NS","").replace(".BO",""), last_price, change, perc_change, perc_change_invested, int(round(element[1]*element[2], -3)/1000), target_price, lower_price)
                 profit_block = round(((last_price - element[2])*element[1]),1)  #(last_price-buy_price)*qt
                 today_profit_this_stock = round(element[1]*Decimal(change))
                 today_profit += today_profit_this_stock
                 total_profit_in_all_positions += profit_block
                 statement+="{}>qty:{} p/unit:{}, buy p/u:{} <b>profit:{}</b> <b>today profit:{}</b>\n\n".format(index, element[1], last_price, element[2], int(profit_block), today_profit_this_stock)
-            elif len(element) == 4: #if equity has been partly profit/loss booked
+            elif len(element) == 4: #if equity has been partly profit/loss booked, its expected there will be one open line for partially filled equity
                 profit_step = round(((element[3] - element[2])*element[1]),1) #(sell_price-buy_price)*qt
                 statement += "<b>{}</b> qty:{} <b>Invested:{}K profit:{} (F)</b>\n".format(element[0], element[1],
                                                                                    int(round(Decimal(element[1])*Decimal(element[2]), -3)/1000),
@@ -343,6 +356,7 @@ def main():
     #cookies = response.cookies
     cookies = ''
     headers = ''
+ 
     parser = argparse.ArgumentParser()
     parser.add_argument("--payout", "-p", help="Initial payout")
     args = parser.parse_args()
@@ -350,7 +364,7 @@ def main():
         initial_payout(args.payout, headers, cookies)
     else:
         from datetime import datetime as dt
-        if dt.now().minute in (3, 24, 45):
+        if  dt.now().minute in (3, 24, 45):
             #if True:
             calculate_profit(headers=headers, cookies=cookies)
 
