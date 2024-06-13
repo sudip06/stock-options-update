@@ -176,11 +176,11 @@ def calculate_profit(headers, cookies):
     statement += f"<b>Nifty:{round(last_price)}, change:{change}({perc_change}%)</b>\n\n"
 
     current_minute = datetime.now().minute  # Get the current minute
-    allowed_minutes = [3, 34, 45]  # Define the allowed minutes
+    allowed_minutes = [3, 33, 45]  # Define the allowed minutes
 
-    # Check if the current minute is one of the allowed minutes
-    #if current_minute not in allowed_minutes:
-    #    return
+    #Check if the current minute is one of the allowed minutes
+    if current_minute not in allowed_minutes:
+        return
 
     if not holdings:
         return
