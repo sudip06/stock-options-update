@@ -245,6 +245,15 @@ def main():
         'bm_sv': 'randomcookievalue',
     }
 
+    # Convert the strings to datetime objects for comparison
+    holidays_dates = [datetime.strptime(date, "%d-%b-%y").date() for date in holidays]
+
+    # Get today's date
+    today = datetime.today().date()
+
+    # Check if today is a holiday
+    if today in holidays_dates:
+        return
     if args.action == "calculate_profit":
         calculate_profit(headers, cookies)
         track_stocks(target_stocks)
