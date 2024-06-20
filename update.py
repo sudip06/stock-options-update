@@ -170,13 +170,48 @@ def show_stock(data):
     if not target_stocks_found:
         print(f"No target price or stop loss price found for stock {name}.")
 
+def sell_stock(data):
+    name = input_with_autocomplete("Enter the name of the stock to sell: ")
+
+    holdings_index = None
+    for i, holding in enumerate(data['holdings']):
+        if holding[0][0] == name:
+            holdings_index = i
+            break
+
+    if holdings_index is None:
+        print(f"Stock {name} not found.")
+        return
+
+    # Ask for number of shares to sell
+    current_shares = data['holdings'][holdings_index][0][1]
+    number_of_shares_input = input(f"Enter the number of shares to sell (current: {current_shares}): ")
+    number_of_shares = int(number_of_shares_input) if number_of_shares_input else current_shares
+
+    # Ask for selling price
+    selling_price_input = input("Enter the selling price: ").strip()
+    if not selling_price_input:
+        print("Selling price cannot be blank.")
+        return
+    selling_price = float(selling_price_input)
+
+    if number_of_shares >= current_shares:
+        # Sell all shares
+        data['holdings'][holdings_index][0].append(selling_price)
+        print(f"All shares of {name} sold at {selling_price}.")
+    else:
+        # Sell part of the shares
+        data['holdings'][holdings_index][0][1] -= number_of_shares
+        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2], selling_price])
+        print(f"{number_of_shares} shares of {name} sold at {selling_price}.")
+
 def main():
     global data
     filename = 'india_data.json'
     data = load_data(filename)
 
     while True:
-        action = input("Enter 'add' to add a stock, 'delete' to delete a stock, 'modify' to modify a stock, 'show' to show details of a stock (or 'exit' to quit): ").strip().lower()
+        action = input("Enter 'add' to add a stock, 'delete' to delete a stock, 'modify' to modify a stock, 'show' to show details of a stock, 'sell' to sell a stock (or 'exit' to quit): ").strip().lower()
         if action == 'add':
             add_stock(data)
         elif action == 'delete':
@@ -185,6 +220,8 @@ def main():
             modify_stock(data)
         elif action == 'show':
             show_stock(data)
+        elif action == 'sell':
+            sell_stock(data)
         elif action == 'exit':
             break
         else:
