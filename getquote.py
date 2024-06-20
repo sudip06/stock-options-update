@@ -158,9 +158,28 @@ def process_stock(element):
     perc_change, change = get_change(element[0].upper())
     profit_block = round((last_price - element[2]) * element[1], 1)
     today_profit = round(element[1] * Decimal(change))
-    target_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 0)
-    lower_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 1)
-    return last_price, perc_change, change, profit_block, today_profit, target_price, lower_price
+    profit_percentage = round((last_price - element[2])*100/element[2],1)
+
+    try:
+        target_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 0)
+    except StopIteration:
+        raise ValueError(f"No matching target price found for element: {element[0]}")
+
+    try:
+        lower_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 1)
+    except StopIteration:
+        raise ValueError(f"No matching lower price found for element: {element[0]}")
+
+    return last_price, perc_change, profit_percentage, change, profit_block, today_profit, target_price, lower_price
+
+#def process_stock(element):
+#    last_price = get_current_price(element[0], 0)
+#    perc_change, change = get_change(element[0].upper())
+#    profit_block = round((last_price - element[2]) * element[1], 1)
+#    today_profit = round(element[1] * Decimal(change))
+#    target_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 0)
+#    lower_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 1)
+#    return last_price, perc_change, change, profit_block, today_profit, target_price, lower_price
 
 def process_option(element, headers, cookies, option_data):
     d = option_data['records']['data']
@@ -196,11 +215,11 @@ def calculate_profit(headers, cookies):
         option_data = None
         for index, element in enumerate(block):
             if len(element) == 3:  # Stock
-                last_price, perc_change, change, profit, today_profit_stock, target_price, lower_price = process_stock(element)
+                last_price, perc_change, profit_perc, change, profit, today_profit_stock, target_price, lower_price = process_stock(element)
                 today_profit += today_profit_stock
                 total_profit += profit
                 profit_block += profit
-                statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} lower alert:{lower_price}</b>\n"
+                statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit_perc}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} lower alert:{lower_price}</b>\n"
                 statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b>\n\n"
 
             elif len(element) == 4:  # Partially booked stock
