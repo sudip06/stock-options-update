@@ -59,17 +59,50 @@ def add_stock(data):
     stop_loss_price_input = input(f"Enter the stop loss price (default -10% below cost price {default_stop_loss_price}): ")
     stop_loss_price = float(stop_loss_price_input) if stop_loss_price_input else default_stop_loss_price
 
-    # Add to holdings
-    data['holdings'].append([[name, number_of_shares, cost_price, date]])
+    # Check if there's an existing open position for the stock
+    existing_position = None
+    for holding in data['holdings']:
+        if holding[0][0] == name:
+            existing_position = holding
+            break
 
-    # Add to target_profit
-    data['target_profit'].append([profit, loss])
+    if existing_position:
+        # Update existing position
+        existing_shares = existing_position[0][1]
+        existing_cost_price = existing_position[0][2]
+        existing_profit = data['target_profit'][data['holdings'].index(existing_position)][0]
+        existing_loss = data['target_profit'][data['holdings'].index(existing_position)][1]
 
-    # Add to target_stocks
-    data['target_stocks'].append([name, target_price, 0])
-    data['target_stocks'].append([name, stop_loss_price, 1])
+        # Calculate new values
+        total_shares = existing_shares + number_of_shares
+        new_cost_price = (existing_cost_price * existing_shares + cost_price * number_of_shares) / total_shares
+        new_profit = existing_profit + profit
+        new_loss = existing_loss + loss
 
-    print(f"Stock {name} added successfully.")
+        # Update data
+        existing_position[0][1] = total_shares
+        existing_position[0][2] = new_cost_price
+        data['target_profit'][data['holdings'].index(existing_position)] = [new_profit, new_loss]
+        for target in data['target_stocks']:
+            if target[0] == name:
+                if target[2] == 0:
+                    target[1] = target_price
+                elif target[2] == 1:
+                    target[1] = stop_loss_price
+
+        print(f"Stock {name} updated successfully.")
+    else:
+        # Add to holdings
+        data['holdings'].append([[name, number_of_shares, cost_price, date]])
+
+        # Add to target_profit
+        data['target_profit'].append([profit, loss])
+
+        # Add to target_stocks
+        data['target_stocks'].append([name, target_price, 0])
+        data['target_stocks'].append([name, stop_loss_price, 1])
+
+        print(f"Stock {name} added successfully.")
 
 # Function to delete a stock from the portfolio
 def delete_stock(data):
@@ -252,7 +285,8 @@ def sell_stock(data):
     else:
         # Sell part of the shares
         data['holdings'][holdings_index][0][1] -= number_of_shares
-        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2], selling_price, date])
+        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2],
+                                                 data['holdings'][holdings_index][0][3], selling_price, date])
         print(f"{number_of_shares} shares of {name} sold at {selling_price} on {date}.")
 
 # Main function to manage the portfolio
