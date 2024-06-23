@@ -12,6 +12,9 @@ def save_data(filename, data):
     with open(filename, 'w') as file:
         json.dump(data, file, indent=4)
 
+def bold(text):
+    return f"\033[1m{text}\033[0m"
+
 # Autocomplete function for stock names
 def complete(text, state):
     options = [stock[0][0] for stock in data['holdings'] if stock[0][0].startswith(text.upper())]
@@ -75,7 +78,7 @@ def add_stock(data):
 
         # Calculate new values
         total_shares = existing_shares + number_of_shares
-        new_cost_price = (existing_cost_price * existing_shares + cost_price * number_of_shares) / total_shares
+        new_cost_price = round((existing_cost_price * existing_shares + cost_price * number_of_shares) / total_shares, 1)
         new_profit = existing_profit + profit
         new_loss = existing_loss + loss
 
@@ -208,27 +211,27 @@ def show_stock(data):
 
             print(f"Stock: {holding[0][0]}")
 
-            print("\nOpen Sub-blocks:")
+            print(bold("\nOpen Sub-blocks:"))
             for sub_block in open_sub_blocks:
                 entry_date = datetime.strptime(sub_block[3], '%d-%m-%Y').date()
                 days_held = (today - entry_date).days
-                print(f"  Number of Shares: {sub_block[1]}")
-                print(f"  Cost Price: {sub_block[2]}")
-                print(f"  Date: {sub_block[3]} (days held: {days_held})")
+                print(f"  {bold('Number of Shares')}: {sub_block[1]}")
+                print(f"  {bold('Cost Price')}: {sub_block[2]}")
+                print(f"  {bold('Date')}: {sub_block[3]} (days held: {bold(str(days_held))}")
             if closed_sub_blocks:
-                print("\nClosed Sub-blocks:")
+                print(bold("\nClosed Sub-blocks:"))
             for sub_block in closed_sub_blocks:
                 entry_date = datetime.strptime(sub_block[3], '%d-%m-%Y').date()
                 closed_date = datetime.strptime(sub_block[5], '%d-%m-%Y').date()
                 days_held = (closed_date - entry_date).days
-                print(f"  Number of Shares: {sub_block[1]}")
-                print(f"  Cost Price: {sub_block[2]}")
-                print(f"  Selling Price: {sub_block[4]}")
-                print(f"  Buying Date: {sub_block[3]}")
-                print(f"  Selling Date: {sub_block[5]} (days held: {days_held})")
-                profit=(sub_block[4]-sub_block[2])*sub_block[1]
-                print(f"  Profit/Loss: {profit}")
-
+                print(f"  {bold('Number of Shares')}: {sub_block[1]}")
+                print(f"  {bold('Cost Price')}: {sub_block[2]}")
+                print(f"  {bold('Selling Price')}: {sub_block[4]}")
+                print(f"  {bold('Buying Date')}: {sub_block[3]}")
+                print(f"  {bold('Selling Date')}: {sub_block[5]} (days held: {bold(str(days_held))})")
+                profit=round(((sub_block[4]-sub_block[2])*sub_block[1])/1000)
+                print(f"  {bold('Profit/Loss')}: {bold(str(profit) + 'K')}")
+                print("\n")
             break
 
     if not holdings_found:
@@ -246,7 +249,6 @@ def show_stock(data):
     if not target_stocks_found:
         print(f"No target price or stop loss price found for stock {name}.")
 
-# Function to sell a stock from the portfolio
 def sell_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to sell: ")
 
@@ -260,8 +262,21 @@ def sell_stock(data):
         print(f"Stock {name} not found.")
         return
 
-    # Ask for number of shares to sell
-    current_shares = data['holdings'][holdings_index][0][1]
+    # Find the open sub-block with number of entries equal to 4
+    open_sub_block_index = None
+    for j, sub_block in enumerate(data['holdings'][holdings_index]):
+        if len(sub_block) == 4:
+            open_sub_block_index = j
+            break
+
+    if open_sub_block_index is None:
+        # No open section found, delete target_stocks for the stock
+        data['target_stocks'] = [stock for stock in data['target_stocks'] if stock[0] != name]
+        print(f"No open section found for {name}. Target stocks for {name} removed.")
+        return
+
+    # Ask for number of shares to sell from the open sub-block
+    current_shares = data['holdings'][holdings_index][open_sub_block_index][1]
     number_of_shares_input = input(f"Enter the number of shares to sell (current: {current_shares}): ")
     number_of_shares = int(number_of_shares_input) if number_of_shares_input else current_shares
 
@@ -278,42 +293,61 @@ def sell_stock(data):
     date = date_input if date_input else today_date
 
     if number_of_shares >= current_shares:
-        # Sell all shares
-        data['holdings'][holdings_index][0].append(selling_price)
-        data['holdings'][holdings_index][0].append(date)
+        # Sell all shares in the open sub-block
+        data['holdings'][holdings_index][open_sub_block_index].append(selling_price)
+        data['holdings'][holdings_index][open_sub_block_index].append(date)
         print(f"All shares of {name} sold at {selling_price} on {date}.")
+
+        # Check if there are any remaining open sub-blocks
+        remaining_open_sub_blocks = [sub_block for sub_block in data['holdings'][holdings_index] if len(sub_block) == 4]
+        if not remaining_open_sub_blocks:
+            # No remaining open sub-blocks, remove target stocks
+            data['target_stocks'] = [stock for stock in data['target_stocks'] if stock[0] != name]
+            print(f"No remaining open sections for {name}. Target stocks for {name} removed.")
     else:
-        # Sell part of the shares
-        data['holdings'][holdings_index][0][1] -= number_of_shares
-        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2],
-                                                 data['holdings'][holdings_index][0][3], selling_price, date])
+        # Sell part of the shares in the open sub-block
+        data['holdings'][holdings_index][open_sub_block_index][1] -= number_of_shares
+        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][open_sub_block_index][2],
+                                                 data['holdings'][holdings_index][open_sub_block_index][3], selling_price, date])
         print(f"{number_of_shares} shares of {name} sold at {selling_price} on {date}.")
 
 # Main function to manage the portfolio
 def main():
     global data
     filename = 'india_data.json'
-    data = load_data(filename)
 
     while True:
-        action = input("Enter 'add' to add a stock, 'delete' to delete a stock, 'modify' to modify a stock, 'show' to show details of a stock, 'sell' to sell a stock (or 'exit' to quit): ").strip().lower()
+        print("Enter 'add' to add a stock, 'delete' to delete a stock,")
+        action = input(" 'modify' to modify a stock, 'show' to show details of a stock, 'sell' to sell a stock (or 'exit' to quit): ").strip().lower()
+        #action = input("Enter 'add' to add a stock, 'delete' to delete a stock, 'modify' to modify a stock, 'show' to show details of a stock, 'sell' to sell a stock (or 'exit' to quit): ").strip().lower()
         if action == 'add':
+            data = load_data(filename)
             add_stock(data)
+            print("Changes saved to file.")
+            save_data(filename, data)
         elif action == 'delete':
+            data = load_data(filename)
             delete_stock(data)
+            save_data(filename, data)
+            print("Changes saved to file.")
         elif action == 'modify':
+            data = load_data(filename)
             modify_stock(data)
+            save_data(filename, data)
+            print("Changes saved to file.")
         elif action == 'show':
+            data = load_data(filename)
             show_stock(data)
         elif action == 'sell':
+            data = load_data(filename)
             sell_stock(data)
+            save_data(filename, data)
+            print("Changes saved to file.")
         elif action == 'exit':
             break
         else:
             print("Invalid option. Please try again.")
 
-    save_data(filename, data)
-    print("Changes saved to file.")
 
 if __name__ == "__main__":
     main()
