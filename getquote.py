@@ -224,13 +224,15 @@ def calculate_profit(headers, cookies):
                 purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
                 days_held = (datetime.now() - purchase_date_obj).days
                 statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit_perc}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} lower alert:{lower_price}</b>\n"
-                statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b> Days held:{days_held} (purchase date: {purchase_date})\n\n"
+                statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b> Days held:{days_held} (purchase date: {purchase_date})\n"
 
             elif len(element) == 6:  # Partially booked stock
                 purchase_date = element[3]
                 # Calculate days held
                 purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
-                days_held = (datetime.now() - purchase_date_obj).days
+                sell_date = element[5]
+                sell_date_obj = datetime.strptime(sell_date, "%d-%m-%Y")
+                days_held = (sell_date_obj - purchase_date_obj).days
                 profit_step = round(((element[4] - element[2]) * element[1]), 1)
                 profit_closed += profit_step
                 total_profit += profit_step
