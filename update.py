@@ -1,14 +1,18 @@
 import json
 import readline
+from datetime import datetime
 
+# Function to load data from JSON file
 def load_data(filename):
     with open(filename, 'r') as file:
         return json.load(file)
 
+# Function to save data to JSON file
 def save_data(filename, data):
     with open(filename, 'w') as file:
         json.dump(data, file, indent=4)
 
+# Autocomplete function for stock names
 def complete(text, state):
     options = [stock[0][0] for stock in data['holdings'] if stock[0][0].startswith(text.upper())]
     if state < len(options):
@@ -16,11 +20,13 @@ def complete(text, state):
     else:
         return None
 
+# Function to get input with autocomplete feature
 def input_with_autocomplete(prompt):
     readline.set_completer(complete)
     readline.parse_and_bind("tab: complete")
     return input(prompt).strip().upper()
 
+# Function to calculate default values for profit, loss, target price, and stop loss price
 def calculate_default_values(number_of_shares, cost_price):
     total_cost = number_of_shares * cost_price
     default_profit = int(0.3 * total_cost)
@@ -29,10 +35,15 @@ def calculate_default_values(number_of_shares, cost_price):
     default_stop_loss_price = round(cost_price * 0.9, 2)
     return default_profit, default_loss, default_target_price, default_stop_loss_price
 
+# Function to add a new stock to the portfolio
 def add_stock(data):
     name = input_with_autocomplete("Enter the name of the stock: ")
     number_of_shares = int(input("Enter the number of shares: "))
     cost_price = float(input("Enter the cost price: "))
+
+    today_date = datetime.now().strftime('%d-%m-%Y')
+    date_input = input(f"Enter the date (default {today_date}): ").strip()
+    date = date_input if date_input else today_date
 
     default_profit, default_loss, default_target_price, default_stop_loss_price = calculate_default_values(number_of_shares, cost_price)
 
@@ -49,7 +60,7 @@ def add_stock(data):
     stop_loss_price = float(stop_loss_price_input) if stop_loss_price_input else default_stop_loss_price
 
     # Add to holdings
-    data['holdings'].append([[name, number_of_shares, cost_price]])
+    data['holdings'].append([[name, number_of_shares, cost_price, date]])
 
     # Add to target_profit
     data['target_profit'].append([profit, loss])
@@ -60,6 +71,7 @@ def add_stock(data):
 
     print(f"Stock {name} added successfully.")
 
+# Function to delete a stock from the portfolio
 def delete_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to delete: ")
 
@@ -81,6 +93,7 @@ def delete_stock(data):
     else:
         print(f"Stock {name} not found.")
 
+# Function to modify details of a stock in the portfolio
 def modify_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to modify: ")
 
@@ -100,6 +113,10 @@ def modify_stock(data):
 
     cost_price_input = input(f"Enter the cost price (current: {data['holdings'][holdings_index][0][2]}): ")
     cost_price = float(cost_price_input) if cost_price_input else data['holdings'][holdings_index][0][2]
+
+    current_date = data['holdings'][holdings_index][0][3]
+    date_input = input(f"Enter the date (current: {current_date}): ").strip()
+    date = date_input if date_input else current_date
 
     default_profit, default_loss, default_target_price, default_stop_loss_price = calculate_default_values(number_of_shares, cost_price)
 
@@ -128,6 +145,7 @@ def modify_stock(data):
     # Update holdings
     data['holdings'][holdings_index][0][1] = number_of_shares
     data['holdings'][holdings_index][0][2] = cost_price
+    data['holdings'][holdings_index][0][3] = date
 
     # Update target_profit
     data['target_profit'][holdings_index][0] = profit
@@ -143,16 +161,41 @@ def modify_stock(data):
 
     print(f"Stock {name} modified successfully.")
 
+# Function to show details of a stock in the portfolio
 def show_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to show details: ")
-
+    # Current date
+    today = datetime.now().date()
     holdings_found = False
     for holding in data['holdings']:
         if holding[0][0] == name:
-            print(f"Stock: {holding[0][0]}")
-            print(f"Number of Shares: {holding[0][1]}")
-            print(f"Cost Price: {holding[0][2]}")
             holdings_found = True
+            open_sub_blocks = [sub_block for sub_block in holding if len(sub_block) == 4]
+            closed_sub_blocks = [sub_block for sub_block in holding if len(sub_block) == 6]
+
+            print(f"Stock: {holding[0][0]}")
+
+            print("\nOpen Sub-blocks:")
+            for sub_block in open_sub_blocks:
+                entry_date = datetime.strptime(sub_block[3], '%d-%m-%Y').date()
+                days_held = (today - entry_date).days
+                print(f"  Number of Shares: {sub_block[1]}")
+                print(f"  Cost Price: {sub_block[2]}")
+                print(f"  Date: {sub_block[3]} (days held: {days_held})")
+            if closed_sub_blocks:
+                print("\nClosed Sub-blocks:")
+            for sub_block in closed_sub_blocks:
+                entry_date = datetime.strptime(sub_block[3], '%d-%m-%Y').date()
+                closed_date = datetime.strptime(sub_block[5], '%d-%m-%Y').date()
+                days_held = (closed_date - entry_date).days
+                print(f"  Number of Shares: {sub_block[1]}")
+                print(f"  Cost Price: {sub_block[2]}")
+                print(f"  Selling Price: {sub_block[4]}")
+                print(f"  Buying Date: {sub_block[3]}")
+                print(f"  Selling Date: {sub_block[5]} (days held: {days_held})")
+                profit=(sub_block[4]-sub_block[2])*sub_block[1]
+                print(f"  Profit/Loss: {profit}")
+
             break
 
     if not holdings_found:
@@ -162,14 +205,15 @@ def show_stock(data):
     for stock in data['target_stocks']:
         if stock[0] == name:
             if stock[2] == 0:
-                print(f"Target Price: {stock[1]}")
+                print(f"  Target Price: {stock[1]}")
             elif stock[2] == 1:
-                print(f"Stop Loss Price: {stock[1]}")
+                print(f"  Stop Loss Price: {stock[1]}")
             target_stocks_found = True
 
     if not target_stocks_found:
         print(f"No target price or stop loss price found for stock {name}.")
 
+# Function to sell a stock from the portfolio
 def sell_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to sell: ")
 
@@ -195,16 +239,23 @@ def sell_stock(data):
         return
     selling_price = float(selling_price_input)
 
+    # Ask for the date
+    today_date = datetime.now().strftime('%d-%m-%Y')
+    date_input = input(f"Enter the date (default {today_date}): ").strip()
+    date = date_input if date_input else today_date
+
     if number_of_shares >= current_shares:
         # Sell all shares
         data['holdings'][holdings_index][0].append(selling_price)
-        print(f"All shares of {name} sold at {selling_price}.")
+        data['holdings'][holdings_index][0].append(date)
+        print(f"All shares of {name} sold at {selling_price} on {date}.")
     else:
         # Sell part of the shares
         data['holdings'][holdings_index][0][1] -= number_of_shares
-        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2], selling_price])
-        print(f"{number_of_shares} shares of {name} sold at {selling_price}.")
+        data['holdings'][holdings_index].append([name, number_of_shares, data['holdings'][holdings_index][0][2], selling_price, date])
+        print(f"{number_of_shares} shares of {name} sold at {selling_price} on {date}.")
 
+# Main function to manage the portfolio
 def main():
     global data
     filename = 'india_data.json'

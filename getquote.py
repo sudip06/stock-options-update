@@ -214,20 +214,28 @@ def calculate_profit(headers, cookies):
 
         option_data = None
         for index, element in enumerate(block):
-            if len(element) == 3:  # Stock
+            if len(element) == 4:  # Stock
+                purchase_date = element[3]
                 last_price, perc_change, profit_perc, change, profit, today_profit_stock, target_price, lower_price = process_stock(element)
                 today_profit += today_profit_stock
                 total_profit += profit
                 profit_block += profit
+                # Calculate days held
+                purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
+                days_held = (datetime.now() - purchase_date_obj).days
                 statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit_perc}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} lower alert:{lower_price}</b>\n"
-                statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b>\n\n"
+                statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b> Days held:{days_held} (purchase date: {purchase_date})\n\n"
 
-            elif len(element) == 4:  # Partially booked stock
-                profit_step = round(((element[3] - element[2]) * element[1]), 1)
+            elif len(element) == 6:  # Partially booked stock
+                purchase_date = element[3]
+                # Calculate days held
+                purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
+                days_held = (datetime.now() - purchase_date_obj).days
+                profit_step = round(((element[4] - element[2]) * element[1]), 1)
                 profit_closed += profit_step
                 total_profit += profit_step
                 profit_block += profit_step
-                statement += f"<b>{element[0]}</b> qty:{element[1]} <b>Invested:{int(round(Decimal(element[1]) * Decimal(element[2]), -3) / 1000)}K profit:{profit_step} (F)</b>\n"
+                statement += f"<b>{element[0]}</b> qty:{element[1]} <b>Invested:{int(round(Decimal(element[1]) * Decimal(element[2]), -3) / 1000)}K profit:{profit_step} Days held:{days_held} (purchase date: {purchase_date})(F)</b>\n"
 
             else:  # Option
                 if index == 0 and not option_data:
