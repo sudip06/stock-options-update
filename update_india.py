@@ -218,71 +218,85 @@ def modify_stock(data):
 def show_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to view (or press Enter to view all stocks): ")
     if name == "":
-        # Show details for all stocks
+        # Show details for all open stocks
         if not data['holdings']:
             print("No stocks in the portfolio.")
             return
         for i, holding in enumerate(data['holdings']):
-            name = holding[0][0]
-            number_of_shares = holding[0][1]
-            cost_price = holding[0][2]
-            date = holding[0][3]
-            profit = data['target_profit'][i][0]
-            loss = data['target_profit'][i][1]
-            target_price = None
-            stop_loss_price = None
-            print()
-            for stock in data['target_stocks']:
-                if stock[0] == name:
-                    if stock[2] == 0:
-                        target_price = stock[1]
-                    elif stock[2] == 1:
-                        stop_loss_price = stock[1]
-            print(f"{bold('Stock name:')} {name}")
-            print(f"{bold('Number of shares:')} {number_of_shares}")
-            print(f"{bold('Cost price:')} {cost_price}")
-            print(f"{bold('Date:')} {date}")
-            print(f"{bold('Profit:')} {profit}")
-            print(f"{bold('Loss:')} {loss}")
-            print(f"{bold('Target price:')} {target_price}")
-            print(f"{bold('Stop loss price:')} {stop_loss_price}")
-            print()
+            for sub_holding in holding:
+                if len(sub_holding) == 4:  # Only show open holdings
+                    name = sub_holding[0]
+                    number_of_shares = sub_holding[1]
+                    cost_price = sub_holding[2]
+                    date = sub_holding[3]
+                    profit = data['target_profit'][i][0]
+                    loss = data['target_profit'][i][1]
+                    target_price = None
+                    stop_loss_price = None
+                    target_profit_percentage = round((profit) * 100 / (number_of_shares * cost_price), 1)
+                    target_loss_percentage = round((loss) * 100 / (number_of_shares * cost_price), 1)
+                    for stock in data['target_stocks']:
+                        if stock[0] == name:
+                            if stock[2] == 0:
+                                target_price = stock[1]
+                                target_price_percentage = round((target_price - cost_price) * 100 / (cost_price), 1)
+                            elif stock[2] == 1:
+                                stop_loss_price = stock[1]
+                                target_stop_loss_percentage = round((stop_loss_price - cost_price) * 100 / (cost_price), 1)
+                    print()
+                    print(f"{bold('Stock name:')} {name}")
+                    print(f"{bold('Number of shares:')} {number_of_shares}")
+                    print(f"{bold('Cost price:')} {cost_price}")
+                    print(f"{bold('Date:')} {date}")
+                    print(f"{bold('Target Profit:')} {profit} ({target_profit_percentage}%) ")
+                    print(f"{bold('Expected Loss:')} {loss} ({target_loss_percentage}%)")
+                    print(f"{bold('Target price:')} {target_price} ({target_price_percentage}%)")
+                    print(f"{bold('Stop loss price:')} {stop_loss_price} ({target_stop_loss_percentage}%)")
+                    print()
     else:
         # Show details for a specific stock
         holdings_index = None
         for i, holding in enumerate(data['holdings']):
-            if holding[0][0] == name:
-                holdings_index = i
+            for sub_holding in holding:
+                if sub_holding[0] == name and len(sub_holding) == 4:
+                    holdings_index = i
+                    break
+            if holdings_index is not None:
                 break
 
         if holdings_index is None:
-            print(f"Stock {name} not found.")
+            print(f"Stock {name} not found or no open holdings.")
             return
 
-        number_of_shares = data['holdings'][holdings_index][0][1]
-        cost_price = data['holdings'][holdings_index][0][2]
-        date = data['holdings'][holdings_index][0][3]
-        profit = data['target_profit'][holdings_index][0]
-        loss = data['target_profit'][holdings_index][1]
-        target_price = None
-        stop_loss_price = None
-        for stock in data['target_stocks']:
-            if stock[0] == name:
-                if stock[2] == 0:
-                    target_price = stock[1]
-                elif stock[2] == 1:
-                    stop_loss_price = stock[1]
-
-        print()
-        print(f"{bold('Stock name:')} {name}")
-        print(f"{bold('Number of shares:')} {number_of_shares}")
-        print(f"{bold('Cost price:')} {cost_price}")
-        print(f"{bold('Date:')} {date}")
-        print(f"{bold('Profit:')} {profit}")
-        print(f"{bold('Loss:')} {loss}")
-        print(f"{bold('Target price:')} {target_price}")
-        print(f"{bold('Stop loss price:')} {stop_loss_price}")
-        print()
+        for sub_holding in data['holdings'][holdings_index]:
+            if sub_holding[0] == name and len(sub_holding) == 4:
+                number_of_shares = sub_holding[1]
+                cost_price = sub_holding[2]
+                date = sub_holding[3]
+                profit = data['target_profit'][holdings_index][0]
+                loss = data['target_profit'][holdings_index][1]
+                target_price = None
+                stop_loss_price = None
+                target_profit_percentage = round((profit) * 100 / (number_of_shares * cost_price), 1)
+                target_loss_percentage = round((loss) * 100 / (number_of_shares * cost_price), 1)
+                for stock in data['target_stocks']:
+                    if stock[0] == name:
+                        if stock[2] == 0:
+                            target_price = stock[1]
+                            target_price_percentage = round((target_price - cost_price) * 100 / (cost_price), 1)
+                        elif stock[2] == 1:
+                            stop_loss_price = stock[1]
+                            target_stop_loss_percentage = round((stop_loss_price - cost_price) * 100 / (cost_price), 1)
+                print()
+                print(f"{bold('Stock name:')} {name}")
+                print(f"{bold('Number of shares:')} {number_of_shares}")
+                print(f"{bold('Cost price:')} {cost_price}")
+                print(f"{bold('Date:')} {date}")
+                print(f"{bold('Target Profit:')} {profit} ({target_profit_percentage}%) ")
+                print(f"{bold('Loss:')} {loss} ({target_loss_percentage}%)")
+                print(f"{bold('Target price:')} {target_price} ({target_price_percentage}%)")
+                print(f"{bold('Stop loss price:')} {stop_loss_price} ({target_stop_loss_percentage}%)")
+                print()
 
 
 def sell_stock(data):

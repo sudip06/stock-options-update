@@ -162,15 +162,17 @@ def process_stock(element):
 
     try:
         target_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 0)
+        target_percentage = round(((target_price - element[2]) * 100) / element[2], 1)
     except StopIteration:
         raise ValueError(f"No matching target price found for element: {element[0]}")
 
     try:
         lower_price = next(stock[1] for stock in target_stocks if stock[0] == element[0] and stock[2] == 1)
+        lower_percentage = round(((lower_price - element[2]) * 100) / element[2], 1)
     except StopIteration:
         raise ValueError(f"No matching lower price found for element: {element[0]}")
 
-    return last_price, perc_change, profit_percentage, change, profit_block, today_profit, target_price, lower_price
+    return last_price, perc_change, profit_percentage, change, profit_block, today_profit, target_price, lower_price, target_percentage, lower_percentage
 
 #def process_stock(element):
 #    last_price = get_current_price(element[0], 0)
@@ -197,7 +199,7 @@ def calculate_profit(headers, cookies):
     current_minute = datetime.now().minute  # Get the current minute
     allowed_minutes = [3, 33, 45]  # Define the allowed minutes
 
-    #Check if the current minute is one of the allowed minutes
+    # Check if the current minute is one of the allowed minutes
     if current_minute not in allowed_minutes:
         return
 
@@ -216,14 +218,14 @@ def calculate_profit(headers, cookies):
         for index, element in enumerate(block):
             if len(element) == 4:  # Stock
                 purchase_date = element[3]
-                last_price, perc_change, profit_perc, change, profit, today_profit_stock, target_price, lower_price = process_stock(element)
+                last_price, perc_change, profit_perc, change, profit, today_profit_stock, target_price, lower_price, target_percentage, lower_percentage = process_stock(element)
                 today_profit += today_profit_stock
                 total_profit += profit
                 profit_block += profit
                 # Calculate days held
                 purchase_date_obj = datetime.strptime(purchase_date, "%d-%m-%Y")
                 days_held = (datetime.now() - purchase_date_obj).days
-                statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit_perc}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} lower alert:{lower_price}</b>\n"
+                statement += f"<b>{element[0].replace('.NS', '').replace('.BO', '')}:{last_price}, change:{change}(today:{perc_change}% Total:{profit_perc}%)</b> Invested:{int(round(element[1] * element[2], -3) / 1000)}K <b>target:{target_price} ({target_percentage}%) lower alert:{lower_price} ({lower_percentage}%)</b>\n"
                 statement += f"{index}>qty:{element[1]} p/unit:{last_price}, buy p/u:{element[2]} <b>profit:{profit}</b> <b>today profit:{today_profit_stock}</b> Days held:{days_held} (purchase date: {purchase_date})\n"
 
             elif len(element) == 6:  # Partially booked stock
@@ -260,7 +262,6 @@ def calculate_profit(headers, cookies):
 
     # Send the message only if the current minute is one of the allowed minutes
     send(statement, keys.chat_id, keys.token)
-
 
 def main():
     parser = argparse.ArgumentParser(description="Script to calculate profit and alert for stocks and options.")
