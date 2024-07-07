@@ -285,8 +285,9 @@ def main():
     if today in holidays_dates:
         return
     if args.action == "calculate_profit":
-        calculate_profit(headers, cookies)
-        track_stocks(target_stocks)
+        if is_current_time_greater_than(9, 0, 'Asia/Kolkata') and is_current_time_lesser_than(16, 0, 'Asia/Kolkata'):
+            calculate_profit(headers, cookies)
+            track_stocks(target_stocks)
     elif args.action == "initial_payout":
         initial_payout(1, headers, cookies)
     elif args.action == "track_stocks":

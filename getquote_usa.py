@@ -63,7 +63,7 @@ def track_stocks(list_stocks):
     if not os.path.exists(dow_file_name_full):
         last_price = get_current_price("^DJI", 0)
         perc_change, change = get_change("^DJI")
-        if abs(change) > 500:
+        if abs(change) > 600:
             twilio_statement.append(f"DOW moved by:{change} lastprice:{last_price}")
             os.mknod(dow_file_name_full)
 
@@ -91,7 +91,7 @@ def track_stocks(list_stocks):
                 os.mknod(file_name_full)
 
     if statement:
-        send(f"<b>Tracking Alert\n</b>{statement}", keys.chat_id, keys.token)
+        send(f"<b>Tracking Alert\n</b>{statement}", keys.usa_chat_id, keys.usa_token)
         make_twilio_call(twilio_statement)
 
 def make_twilio_call(twilio_statement):
@@ -133,7 +133,7 @@ def initial_payout(which_plan, headers, cookies):
             else:
                 statement += process_option_data(element, headers, cookies, index, block)
         statement += f"Block:{i} Payout:{-payout}\n"
-    send(statement, keys.chat_id, keys.token)
+    send(statement, keys.usa_chat_id, keys.usa_token)
 
 def process_option_data(element, headers, cookies, index, block):
     if element[0] != "NIFTY":
@@ -156,7 +156,12 @@ def process_stock(element):
     last_price = get_current_price(element[0], 0)
     perc_change, change = get_change(element[0].upper())
     profit_block = round((last_price - element[2]) * element[1], 1)
-    today_profit = round(element[1] * Decimal(change))
+    purchase_date_obj = datetime.strptime(element[3], "%d-%m-%Y")
+    days_held = (datetime.now() - purchase_date_obj).days
+    if days_held == 0:
+        today_profit = round(element[1] * Decimal(last_price-element[2]))
+    else:
+        today_profit = round(element[1] * Decimal(change))
     profit_percentage = round((last_price - element[2])*100/element[2],1)
 
     try:
@@ -256,10 +261,11 @@ def calculate_profit(headers, cookies):
 
         statement += f"<b>Total profit:{profit_block}</b>\n\n"
 
+    total_profit = round(total_profit)
     statement += f"Today profit:{today_profit} total profit:{total_profit}\n\n"
 
     # Send the message only if the current minute is one of the allowed minutes
-    send(statement, keys.chat_id, keys.token)
+    send(statement, keys.usa_chat_id, keys.usa_token)
 
 def main():
     parser = argparse.ArgumentParser(description="Script to calculate profit and alert for stocks and options.")
@@ -285,8 +291,10 @@ def main():
         return
     else:
         if args.action == "calculate_profit":
-            if is_current_time_greater_than(8, 30, 'US/Eastern') and is_current_time_lesser_than(16, 0, 'US/Eastern'):
+            if is_current_time_greater_than(9, 00, 'US/Eastern') and is_current_time_lesser_than(16, 0, 'US/Eastern'):
+                #if True:
                 calculate_profit(headers, cookies)
+            if is_current_time_greater_than(9, 30, 'US/Eastern') and is_current_time_lesser_than(16, 0, 'US/Eastern'):
                 track_stocks(target_stocks)
         elif args.action == "initial_payout":
             initial_payout(1, headers, cookies)

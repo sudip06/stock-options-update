@@ -2,6 +2,17 @@ import json
 import readline
 from datetime import datetime
 import os
+import yfinance as yf
+
+
+# Function to fetch the latest stock price from Yahoo Finance
+def fetch_latest_price(stock_symbol):
+    stock = yf.Ticker(stock_symbol)
+    todays_data = stock.history(period='1d')
+    if not todays_data.empty:
+        return todays_data['Close'][0]
+    else:
+        return None
 
 # Function to load data from JSON file
 def load_data(filename):
@@ -243,6 +254,15 @@ def show_stock(data):
                             elif stock[2] == 1:
                                 stop_loss_price = stock[1]
                                 target_stop_loss_percentage = round((stop_loss_price - cost_price) * 100 / (cost_price), 1)
+
+                    latest_price = round(fetch_latest_price(name), 1)
+                    if latest_price is None:
+                        print(f"Failed to fetch the latest price for {name}.")
+                    else:
+                        current_value = number_of_shares * latest_price
+                        positional_profit_loss = round(current_value - (number_of_shares * cost_price))
+                        latest_price_perc_change = round(((latest_price - cost_price)*100)/cost_price,1)
+
                     print()
                     print(f"{bold('Stock name:')} {name}")
                     print(f"{bold('Number of shares:')} {number_of_shares}")
@@ -252,6 +272,9 @@ def show_stock(data):
                     print(f"{bold('Expected Loss:')} {loss} ({target_loss_percentage}%)")
                     print(f"{bold('Target price:')} {target_price} ({target_price_percentage}%)")
                     print(f"{bold('Stop loss price:')} {stop_loss_price} ({target_stop_loss_percentage}%)")
+                    if latest_price is not None:
+                        print(f"{bold('Latest Price:')} {latest_price}")
+                        print(f"{bold('Positional Profit/Loss:')} {positional_profit_loss}({latest_price_perc_change}%)")
                     print()
     else:
         # Show details for a specific stock
@@ -287,6 +310,15 @@ def show_stock(data):
                         elif stock[2] == 1:
                             stop_loss_price = stock[1]
                             target_stop_loss_percentage = round((stop_loss_price - cost_price) * 100 / (cost_price), 1)
+
+                latest_price = round(fetch_latest_price(name),1)
+                if latest_price is None:
+                    print(f"Failed to fetch the latest price for {name}.")
+                else:
+                    current_value = number_of_shares * latest_price
+                    positional_profit_loss = round(current_value - (number_of_shares * cost_price))
+                    latest_price_perc_change = round(((latest_price - cost_price)*100)/cost_price,1)
+
                 print()
                 print(f"{bold('Stock name:')} {name}")
                 print(f"{bold('Number of shares:')} {number_of_shares}")
@@ -296,8 +328,10 @@ def show_stock(data):
                 print(f"{bold('Loss:')} {loss} ({target_loss_percentage}%)")
                 print(f"{bold('Target price:')} {target_price} ({target_price_percentage}%)")
                 print(f"{bold('Stop loss price:')} {stop_loss_price} ({target_stop_loss_percentage}%)")
+                if latest_price is not None:
+                    print(f"{bold('Latest Price:')} {latest_price}")
+                    print(f"{bold('Positional Profit/Loss:')} {positional_profit_loss}({latest_price_perc_change}%)")
                 print()
-
 
 def sell_stock(data):
     name = input_with_autocomplete("Enter the name of the stock to sell: ")
